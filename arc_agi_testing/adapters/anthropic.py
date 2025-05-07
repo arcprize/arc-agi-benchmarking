@@ -1,5 +1,5 @@
 from .provider import ProviderAdapter
-from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_testing.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import anthropic
 import os
 from dotenv import load_dotenv

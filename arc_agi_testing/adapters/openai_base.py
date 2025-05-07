@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
-from src.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_testing.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 from typing import Optional, Any, List, Dict # Added List, Dict
 
 load_dotenv()

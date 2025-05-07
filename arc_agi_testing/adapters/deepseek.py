@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
-from src.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_testing.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 from typing import Optional, Any, List, Dict
 from .openai_base import OpenAIBaseAdapter

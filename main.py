@@ -1,10 +1,10 @@
 import json
-from src.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
+from arc_agi_testing.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
-import src.utils as utils
-from src.schemas import ARCTaskOutput, ARCPair, Attempt
-from src.prompts.prompt_manager import convert_task_pairs_to_prompt
-from src.utils.parsing import parse_and_validate_json
+import arc_agi_testing.utils as utils
+from arc_agi_testing.schemas import ARCTaskOutput, ARCPair, Attempt
+from arc_agi_testing.prompts.prompt_manager import convert_task_pairs_to_prompt
+from arc_agi_testing.utils.parsing import parse_and_validate_json
 from typing import List, Any, Optional
 import os
 import argparse

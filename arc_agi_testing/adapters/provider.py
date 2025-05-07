@@ -2,8 +2,8 @@ import abc
 from typing import List, Dict, Tuple, Any, Optional
 import json
 from datetime import datetime
-from src.schemas import Attempt, ModelConfig
-from src.utils.task_utils import read_models_config
+from arc_agi_testing.schemas import Attempt, ModelConfig
+from arc_agi_testing.utils.task_utils import read_models_config
 
 class ProviderAdapter(abc.ABC):
     def __init__(self, config: str):

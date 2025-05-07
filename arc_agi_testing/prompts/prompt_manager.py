@@ -1,5 +1,5 @@
 import json
-from src.schemas import ARCPair
+from arc_agi_testing.schemas import ARCPair
 from typing import List
 
 def _load_prompt(prompt_name: str) -> str:
