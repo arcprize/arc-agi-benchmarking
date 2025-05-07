@@ -2,6 +2,7 @@ from pydantic import BaseModel, model_validator, root_validator
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 import json
+import hashlib
 
 class APIType:
     """
@@ -20,6 +21,50 @@ class ARCPair(BaseModel):
 class ARCTask(BaseModel):
     train: List[ARCPair]
     test: List[ARCPair]
+    
+    def __eq__(self, other: 'ARCTask') -> bool:
+        if not isinstance(other, ARCTask):
+            return False
+        return (len(self.train) == len(other.train) and
+                len(self.test) == len(other.test) and
+                all(a == b for a, b in zip(self.train, other.train)) and
+                all(a == b for a, b in zip(self.test, other.test)))
+    
+    def __repr__(self) -> str:
+        n_train = len(self.train)
+        n_test = len(self.test)
+        task_hash = self.get_hash()
+        return f"ARCTask({n_train} train + {n_test} test, {task_hash})"
+    
+    def __str__(self) -> str:
+        return self.__repr__()
+    
+    def get_hash(self) -> str:
+        """Generate a stable hash of the entire task"""
+        task_json = json.dumps(self.model_dump(), sort_keys=True)
+        return hashlib.sha256(task_json.encode()).hexdigest()[:8]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump()
+    
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ARCTask':
+        if isinstance(data, str):
+            data = json.loads(data)
+        return cls.model_validate(data)
+    
+    @classmethod
+    def load_from_file(cls, filepath: str) -> 'ARCTask':
+        with open(filepath, 'r') as f:
+            return cls.from_dict(json.loads(f.read()))
+    
+    def save_to_file(self, filepath: str, indent: int = 2) -> None:
+        with open(filepath, 'w') as f:
+            f.write(self.to_json(indent=indent))
+
 
 class Message(BaseModel):
     role: str
