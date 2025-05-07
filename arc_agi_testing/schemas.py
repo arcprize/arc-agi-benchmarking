@@ -66,13 +66,21 @@ class AttemptMetadata(BaseModel):
         }
     }
 
+    def __str__(self):
+        """
+        Customize string representation for prettier output
+        """
+        return json.dumps(self.model_dump(), indent=2, default=str)
+    
+    __repr__ = __str__
+
 class Attempt(BaseModel):
     answer: Union[str, List[List[int]]]
     metadata: AttemptMetadata
     
     @model_validator(mode='before')
     @classmethod
-    def validate_answer(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+    def validate(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """Ensure answer is properly serialized"""
         if not isinstance(values, dict):
             return values
@@ -91,7 +99,31 @@ class Attempt(BaseModel):
     }
 
 class Attempts(BaseModel):
-    attempts: List[Attempt]
+    attempts: Union[List[Attempt], Dict[str, Attempt]]
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_attempts(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert dictionary of attempts with keys like 'attempt_1', 'attempt_2' to a list of attempts
+        if the attempts field is a dictionary.
+        """
+        if isinstance(values, list):
+            return values
+            
+        attempts = values
+        if isinstance(attempts, dict):
+            # Check if keys follow the pattern 'attempt_X'
+            attempt_list = []
+            # Sort keys to ensure correct order (attempt_1, attempt_2, etc.)
+            for key in sorted(attempts.keys()):
+                if key.startswith('attempt_'):
+                    attempt_list.append(attempts[key])
+            
+            # Replace the dict with the ordered list
+            values['attempts'] = attempt_list
+            
+        return values
 
 class ModelPricing(BaseModel):
     date: str
