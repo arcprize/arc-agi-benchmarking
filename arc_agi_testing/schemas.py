@@ -143,7 +143,7 @@ class Attempt(BaseModel):
         }
     }
 
-class Attempts(BaseModel):
+class TestPairAttempts(BaseModel):
     attempts: Union[List[Attempt], Dict[str, Attempt]]
 
     @model_validator(mode='before')
@@ -151,7 +151,7 @@ class Attempts(BaseModel):
     def validate_attempts(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         """
         Convert dictionary of attempts with keys like 'attempt_1', 'attempt_2' to a list of attempts
-        if the attempts field is a dictionary.
+        (one for each pair) if the attempts field is a dictionary.
         """
         if isinstance(values, list):
             return values
@@ -165,7 +165,6 @@ class Attempts(BaseModel):
                 if key.startswith('attempt_'):
                     attempt_list.append(attempts[key])
             
-            # Replace the dict with the ordered list
             values['attempts'] = attempt_list
             
         return values
@@ -182,6 +181,42 @@ class Attempts(BaseModel):
                 key = f"attempt_{index+1}"
                 return self.attempts.get(key)
             return self.attempts.get(index)
+
+    def __len__(self):
+        """
+        Return the number of attempts.
+        """
+        if isinstance(self.attempts, list):
+            return len(self.attempts)
+        elif isinstance(self.attempts, dict):
+            return len(self.attempts)
+        return 0
+    
+    def __iter__(self):
+        """
+        Allow iteration over attempts.
+        """
+        if isinstance(self.attempts, list):
+            return iter(self.attempts)
+        elif isinstance(self.attempts, dict):
+            # Sort keys to ensure consistent iteration order
+            return iter([self.attempts[key] for key in sorted(self.attempts.keys())])
+
+class TestedTask(BaseModel):
+    """
+    Top level object for a tested task, consisting of a list of tested test pairs
+    """
+    test_pairs: List[TestPairAttempts]
+
+    def __len__(self):
+        return len(self.test_pairs)
+    
+    def __getitem__(self, index):
+        return self.test_pairs[index]
+    
+    
+
+    
 
 class ModelPricing(BaseModel):
     date: str
