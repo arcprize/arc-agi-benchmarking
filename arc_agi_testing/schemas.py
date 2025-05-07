@@ -124,6 +124,19 @@ class Attempts(BaseModel):
             values['attempts'] = attempt_list
             
         return values
+    
+    def __getitem__(self, index):
+        """
+        Allow subscripting to access attempts directly.
+        """
+        if isinstance(self.attempts, list):
+            return self.attempts[index]
+        elif isinstance(self.attempts, dict):
+            if isinstance(index, int):
+                # Convert to attempt_X format
+                key = f"attempt_{index+1}"
+                return self.attempts.get(key)
+            return self.attempts.get(index)
 
 class ModelPricing(BaseModel):
     date: str
