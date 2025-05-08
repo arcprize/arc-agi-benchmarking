@@ -3,6 +3,7 @@ from typing import List, Tuple
 from pathlib import Path
 from typing import List, Tuple, Dict
 import json
+from arc_agi_testing.schemas import ARCTask, TestedTask
 
 class ARCScorer:
     def __init__(self, task_dir: str, submission_dir: str, print_logs: bool = False, results_dir: str = None):
@@ -26,20 +27,18 @@ class ARCScorer:
                 solutions[task_id] = json.load(f)
         return solutions
 
-    def score_task(self, task_id: str, submission_path: Path) -> Tuple[float, float, int]:
+    @staticmethod
+    def score_task(task: ARCTask, testing_results: TestedTask) -> Tuple[float, float, int]:
         """
-        Scores a single task submission against the solutions.
-        Returns a dictionary containing task_score, task_cost, num_attempts.
+        Score a task against the solutions.
         """
-        with submission_path.open() as f:
-            task_submission = json.load(f)
-
+        
         task_score = 0
-        num_pairs = len(self.solutions[task_id]['test'])
+        num_pairs = len(task.test)
         task_cost = 0.0
         num_attempts = 0
 
-        for enum_pair_index, pair_attempts in enumerate(task_submission):
+        for enum_pair_index, pair_attempts in enumerate(testing_results):
             # Try to extract pair_index from the attempt key
             pair_index = None
             pair_index_found = False
@@ -138,6 +137,18 @@ class ARCScorer:
 
         return scoring_result
 
+
+    def score_task_from_file(self, task_id: str, submission_path: Path) -> Tuple[float, float, int]:
+        """
+        Scores a single task submission against the solutions.
+        Returns a dictionary containing task_score, task_cost, num_attempts.
+        """
+        with submission_path.open() as f:
+            task_submission = TestedTask(**json.load(f))
+        task = ARCTask.from_dict(self.solutions[task_id]) 
+        return self.score_task(task, task_submission)
+
+
     def score_submission(self) -> Tuple[float, int]:
         """
         Read a submission from file, score it, then return the score
@@ -153,7 +164,7 @@ class ARCScorer:
                 continue
 
             task_id = submission_file.stem
-            scoring_result = self.score_task(task_id, submission_file)
+            scoring_result = self.score_task_from_file(task_id, submission_file)
             
             total_score += scoring_result["score"]
             total_tasks += 1

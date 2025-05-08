@@ -180,7 +180,7 @@ def arc_scorer_fixture(tmp_path):
     create_mock_json(solution_file, SOLUTION_DATA)
 
     # Create dummy submission files (will be overwritten by tests)
-    # This helps instantiate ARCScorer, though score_task takes the direct path
+    # This helps instantiate ARCScorer, though score_task_from_file takes the direct path
     submission_file = submission_dir / "test_task.json"
     create_mock_json(submission_file, {})
 
@@ -196,7 +196,7 @@ def run_test_scenario(arc_scorer_fixture, submission_data, expected_score, expec
     submission_file = submission_dir / f"{task_id}.json"
     create_mock_json(submission_file, submission_data)
 
-    result = scorer.score_task(task_id, submission_file)
+    result = scorer.score_task_from_file(task_id, submission_file)
 
     assert result["score"] == pytest.approx(expected_score)
     assert result["cost"] == pytest.approx(expected_cost)
@@ -268,7 +268,7 @@ def run_error_test_scenario(arc_scorer_fixture, submission_data, expected_except
     create_mock_json(submission_file, submission_data)
 
     with pytest.raises(expected_exception):
-        scorer.score_task(task_id, submission_file)
+        scorer.score_task_from_file(task_id, submission_file)
 
 def test_malformed_not_dict(arc_scorer_fixture):
     run_error_test_scenario(arc_scorer_fixture, SUBMISSION_MALFORMED_NOT_DICT, TypeError)
