@@ -3,16 +3,16 @@ from unittest.mock import Mock, MagicMock, patch
 import inspect # Added for subclass discovery
 import sys # Added for subclass discovery
 
-from src.adapters.openai_base import OpenAIBaseAdapter
-from src.adapters.open_ai import OpenAIAdapter
-from src.adapters.grok import GrokAdapter
-from src.adapters.deepseek import DeepseekAdapter
-from src.adapters.fireworks import FireworksAdapter
+from arc_agi_testing.adapters.openai_base import OpenAIBaseAdapter
+from arc_agi_testing.adapters.open_ai import OpenAIAdapter
+from arc_agi_testing.adapters.grok import GrokAdapter
+from arc_agi_testing.adapters.deepseek import DeepseekAdapter
+from arc_agi_testing.adapters.fireworks import FireworksAdapter
 # Import all adapters to ensure they are available for discovery
-import src.adapters 
+import arc_agi_testing.adapters 
 
-from src.schemas import ModelConfig, ModelPricing, Usage, CompletionTokensDetails, Cost, APIType
-from src.errors import TokenMismatchError
+from arc_agi_testing.schemas import ModelConfig, ModelPricing, Usage, CompletionTokensDetails, Cost, APIType
+from arc_agi_testing.errors import TokenMismatchError
 import os
 from dotenv import load_dotenv
 

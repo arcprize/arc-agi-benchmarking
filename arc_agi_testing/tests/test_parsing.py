@@ -1,5 +1,5 @@
 import pytest
-from src.utils.parsing import backscan_json_parser
+from arc_agi_testing.utils.parsing import backscan_json_parser
 
 # Test cases for backscan_json_parser
 

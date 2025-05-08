@@ -1,7 +1,7 @@
 import pytest
 import json
 from pathlib import Path
-from src.scoring.scoring import ARCScorer
+from arc_agi_testing.scoring import ARCScorer
 
 # Helper function to create mock JSON files
 def create_mock_json(path: Path, data: dict):
