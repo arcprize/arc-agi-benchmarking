@@ -22,7 +22,7 @@ load_dotenv() # Load environment variables for potential API key checks during i
 def find_concrete_subclasses(cls):
     """Finds all concrete subclasses of a given class currently imported."""
     concrete_subclasses = []
-    for name, obj in inspect.getmembers(sys.modules[cls.__module__.split('.')[0]]): # Look within the 'src' module tree
+    for name, obj in inspect.getmembers(sys.modules[cls.__module__.split('.')[0]]): # Look within the 'arc_agi_testing' module tree
         if inspect.ismodule(obj):
              for sub_name, sub_obj in inspect.getmembers(obj):
                   if inspect.isclass(sub_obj) and \
@@ -34,7 +34,7 @@ def find_concrete_subclasses(cls):
                            concrete_subclasses.append(sub_obj)
                            
     # Need to also check adapters imported directly
-    for name, obj in inspect.getmembers(src.adapters):
+    for name, obj in inspect.getmembers(arc_agi_testing.adapters):
          if inspect.isclass(obj) and issubclass(obj, cls) and obj != cls and not inspect.isabstract(obj):
              if obj not in concrete_subclasses:
                   concrete_subclasses.append(obj)
@@ -153,7 +153,7 @@ class TestOpenAIBaseProviderLogic:
         
         # Patch the base ProviderAdapter.__init__ to prevent it from running
         # We will manually set the necessary attributes (model_config, client)
-        with patch("src.adapters.provider.ProviderAdapter.__init__", return_value=None) as mock_provider_init:
+        with patch("arc_agi_testing.adapters.provider.ProviderAdapter.__init__", return_value=None) as mock_provider_init:
             
             # Instantiate the parameterized adapter class (init is mocked)
             adapter = adapter_class(config=mock_model_config.name) 

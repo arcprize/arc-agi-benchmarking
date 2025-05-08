@@ -1,5 +1,5 @@
 import os
-from src.schemas import ARCPair, ModelConfig
+from arc_agi_testing.schemas import ARCPair, ModelConfig
 from typing import List
 import json
 import re

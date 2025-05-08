@@ -7,7 +7,7 @@ def _load_prompt(prompt_name: str) -> str:
     Load a prompt from the prompts directory
     """
 
-    return open(f"src/prompts/{prompt_name}.txt", "r").read()
+    return open(f"arc_agi_testing/prompts/{prompt_name}.txt", "r").read()
 
 def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair) -> str:
     """
