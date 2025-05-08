@@ -37,13 +37,13 @@ For example with the `parallel` [command](https://www.gnu.org/software/parallel/
 
 Note: In order to use parllel you'll need a list of task ids. `generate_tasks_list.py` helps with this. Public data task ids are already supplied.
 
-`python3 -m arc_agi_testing.utils.generate_tasks_list --task_dir data/arc-agi/data/training --output_file data/task_lists/public_training`
+`python3 -m arc_agi_benchmarking.utils.generate_tasks_list --task_dir data/arc-agi/data/training --output_file data/task_lists/public_training`
 
 ## Scoring
 
 You can score your submissions by pointing the scoring script at your submissions directory:
 
-`python3 -m arc_agi_testing.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/claude_sonnet_20241022 --print_logs --results_dir results/claude_sonnet_20241022`
+`python3 -m arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/claude_sonnet_20241022 --print_logs --results_dir results/claude_sonnet_20241022`
 
 Note: You'll also need to tell the script which task set to score.
 
@@ -55,7 +55,7 @@ Results are stored in the `results` folder. You can view historical results for 
 
 This repo is welcome to contributions!
 
-Specifically, we would love help adding more model adapters to the `arc_agi_testing/adapters` folder.
+Specifically, we would love help adding more model adapters to the `arc_agi_benchmarking/adapters` folder.
 
 More will get added by the ARC-AGI team, but we'll also gladly accept contributions from the community.
 
@@ -189,7 +189,7 @@ The `test_providers.sh` script includes examples of testing the same model with 
 
 ### 1. Configure Models in models.yml
 
-New models are defined in `arc_agi_testing/models.yml`. Each model requires:
+New models are defined in `arc_agi_benchmarking/models.yml`. Each model requires:
 
 ```yaml
 models:
@@ -280,17 +280,17 @@ After running tests with different configurations, you can compare their perform
 
 ```bash
 # Score short response configuration
-python3 -m arc_agi_testing.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
+python3 -m arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
 
 # Score long response configuration
-python3 -m arc_agi_testing.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
+python3 -m arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
 ```
 
 This allows you to systematically evaluate how different parameter settings affect model performance on ARC-AGI tasks.
 
 ### 3. Create Provider Adapter
 
-1. Create a new file in `arc_agi_testing/adapters/` (e.g., `my_provider.py`)
+1. Create a new file in `arc_agi_benchmarking/adapters/` (e.g., `my_provider.py`)
 2. Implement the `ProviderAdapter` class:
    ```python
    from .provider import ProviderAdapter

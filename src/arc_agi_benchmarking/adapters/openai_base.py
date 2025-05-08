@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
-from arc_agi_testing.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_benchmarking.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 from typing import Optional, Any, List, Dict # Added List, Dict
 
 load_dotenv()
@@ -198,7 +198,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
         # Final Sanity Check: Compare computed total against provider's total (if provider gave one)
         if tt_raw and computed_total != tt_raw:
-            from arc_agi_testing.errors import TokenMismatchError # Local import
+            from arc_agi_benchmarking.errors import TokenMismatchError # Local import
             raise TokenMismatchError(
                 f"Token count mismatch: API reports total {tt_raw}, "
                 f"but computed P:{prompt_tokens_for_cost} + C:{completion_tokens_for_cost} + R:{reasoning_tokens_for_cost} = {computed_total}"
@@ -217,7 +217,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         # Total cost is the sum of all components
         total_cost = prompt_cost + completion_cost + reasoning_cost
 
-        from arc_agi_testing.schemas import Cost  # Local import (avoids circular issues in some environments)
+        from arc_agi_benchmarking.schemas import Cost  # Local import (avoids circular issues in some environments)
         return Cost(
             prompt_cost=prompt_cost,
             completion_cost=completion_cost, # Cost of 'actual' completion

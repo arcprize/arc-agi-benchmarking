@@ -5,8 +5,8 @@ import os
 import json
 
 from main import ARCTester 
-from arc_agi_testing.adapters import ProviderAdapter # Import base class for type hinting/mocking structure
-from arc_agi_testing.schemas import Attempt, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails # Import necessary schemas
+from arc_agi_benchmarking.adapters import ProviderAdapter # Import base class for type hinting/mocking structure
+from arc_agi_benchmarking.schemas import Attempt, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails # Import necessary schemas
 from datetime import datetime, timezone # Import datetime
 
 # Constants for the test

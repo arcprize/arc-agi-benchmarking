@@ -3,16 +3,16 @@ from unittest.mock import Mock, MagicMock, patch
 import inspect # Added for subclass discovery
 import sys # Added for subclass discovery
 
-from arc_agi_testing.adapters.openai_base import OpenAIBaseAdapter
-from arc_agi_testing.adapters.open_ai import OpenAIAdapter
-from arc_agi_testing.adapters.grok import GrokAdapter
-from arc_agi_testing.adapters.deepseek import DeepseekAdapter
-from arc_agi_testing.adapters.fireworks import FireworksAdapter
+from arc_agi_benchmarking.adapters.openai_base import OpenAIBaseAdapter
+from arc_agi_benchmarking.adapters.open_ai import OpenAIAdapter
+from arc_agi_benchmarking.adapters.grok import GrokAdapter
+from arc_agi_benchmarking.adapters.deepseek import DeepseekAdapter
+from arc_agi_benchmarking.adapters.fireworks import FireworksAdapter
 # Import all adapters to ensure they are available for discovery
-import arc_agi_testing.adapters 
+import arc_agi_benchmarking.adapters 
 
-from arc_agi_testing.schemas import ModelConfig, ModelPricing, Usage, CompletionTokensDetails, Cost, APIType
-from arc_agi_testing.errors import TokenMismatchError
+from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing, Usage, CompletionTokensDetails, Cost, APIType
+from arc_agi_benchmarking.errors import TokenMismatchError
 import os
 from dotenv import load_dotenv
 
@@ -22,7 +22,7 @@ load_dotenv() # Load environment variables for potential API key checks during i
 def find_concrete_subclasses(cls):
     """Finds all concrete subclasses of a given class currently imported."""
     concrete_subclasses = []
-    for name, obj in inspect.getmembers(sys.modules[cls.__module__.split('.')[0]]): # Look within the 'arc_agi_testing' module tree
+    for name, obj in inspect.getmembers(sys.modules[cls.__module__.split('.')[0]]): # Look within the 'arc_agi_benchmarking' module tree
         if inspect.ismodule(obj):
              for sub_name, sub_obj in inspect.getmembers(obj):
                   if inspect.isclass(sub_obj) and \
@@ -34,7 +34,7 @@ def find_concrete_subclasses(cls):
                            concrete_subclasses.append(sub_obj)
                            
     # Need to also check adapters imported directly
-    for name, obj in inspect.getmembers(arc_agi_testing.adapters):
+    for name, obj in inspect.getmembers(arc_agi_benchmarking.adapters):
          if inspect.isclass(obj) and issubclass(obj, cls) and obj != cls and not inspect.isabstract(obj):
              if obj not in concrete_subclasses:
                   concrete_subclasses.append(obj)
@@ -153,7 +153,7 @@ class TestOpenAIBaseProviderLogic:
         
         # Patch the base ProviderAdapter.__init__ to prevent it from running
         # We will manually set the necessary attributes (model_config, client)
-        with patch("arc_agi_testing.adapters.provider.ProviderAdapter.__init__", return_value=None) as mock_provider_init:
+        with patch("arc_agi_benchmarking.adapters.provider.ProviderAdapter.__init__", return_value=None) as mock_provider_init:
             
             # Instantiate the parameterized adapter class (init is mocked)
             adapter = adapter_class(config=mock_model_config.name) 

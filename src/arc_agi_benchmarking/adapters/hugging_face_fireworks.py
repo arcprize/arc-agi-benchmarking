@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import json
 from huggingface_hub import InferenceClient
 from datetime import datetime
-from arc_agi_testing.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 from typing import Optional
 

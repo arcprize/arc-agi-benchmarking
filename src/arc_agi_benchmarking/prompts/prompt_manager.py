@@ -1,5 +1,5 @@
 import json
-from arc_agi_testing.schemas import ARCPair
+from arc_agi_benchmarking.schemas import ARCPair
 from typing import List
 
 def _load_prompt(prompt_name: str) -> str:
@@ -7,7 +7,7 @@ def _load_prompt(prompt_name: str) -> str:
     Load a prompt from the prompts directory
     """
 
-    return open(f"arc_agi_testing/prompts/{prompt_name}.txt", "r").read()
+    return open(f"arc_agi_benchmarking/prompts/{prompt_name}.txt", "r").read()
 
 def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair) -> str:
     """

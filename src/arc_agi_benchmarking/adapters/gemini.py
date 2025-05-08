@@ -5,7 +5,7 @@ import json
 import google.generativeai as genai
 from typing import List, Optional
 from datetime import datetime, timezone
-from arc_agi_testing.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 
 load_dotenv()
