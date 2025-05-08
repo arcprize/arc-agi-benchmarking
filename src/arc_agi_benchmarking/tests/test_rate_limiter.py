@@ -2,7 +2,7 @@ import asyncio
 import time
 import pytest
 import math
-from src.utils.rate_limiter import AsyncRequestRateLimiter
+from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
 
 # Pytest marker for async tests
 pytestmark = pytest.mark.asyncio

@@ -2,6 +2,7 @@ import json
 from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
+from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
 from arc_agi_benchmarking.schemas import ARCTaskOutput, ARCPair, Attempt
 from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
 from arc_agi_benchmarking.utils.parsing import parse_and_validate_json

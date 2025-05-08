@@ -4,7 +4,7 @@ import csv
 import json
 import os
 from pathlib import Path
-from src.utils import metrics
+from arc_agi_benchmarking.utils import metrics
 
 # --- Fixtures ---
 

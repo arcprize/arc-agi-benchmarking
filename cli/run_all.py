@@ -14,9 +14,9 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from main import ARCTester
-from src.utils.task_utils import read_models_config, read_provider_rate_limits
-from src.utils.rate_limiter import AsyncRequestRateLimiter
-from src.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
+from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits
+from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
+from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
