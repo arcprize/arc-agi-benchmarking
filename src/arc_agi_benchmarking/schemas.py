@@ -134,6 +134,9 @@ class Attempt(BaseModel):
         if isinstance(answer, list):
             # Convert nested list to string representation
             values['answer'] = json.dumps(answer)
+
+        if isinstance(values['answer'], str):
+            values['answer'] = json.loads(values['answer'])
             
         return values
     
@@ -166,6 +169,7 @@ class TestPairAttempts(BaseModel):
                     attempt_list.append(attempts[key])
             
             values['attempts'] = attempt_list
+        
             
         return values
     
@@ -202,7 +206,7 @@ class TestPairAttempts(BaseModel):
             # Sort keys to ensure consistent iteration order
             return iter([self.attempts[key] for key in sorted(self.attempts.keys())])
 
-class TestedTask(BaseModel):
+class BenchmarkedTaskResults(BaseModel):
     """
     Top level object for a tested task, consisting of a list of tested test pairs
     """
@@ -213,6 +217,9 @@ class TestedTask(BaseModel):
     
     def __getitem__(self, index):
         return self.test_pairs[index]
+    
+    def __iter__(self):
+        return iter(self.test_pairs)
     
     
 

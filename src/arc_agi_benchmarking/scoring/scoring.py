@@ -3,7 +3,7 @@ from typing import List, Tuple
 from pathlib import Path
 from typing import List, Tuple, Dict
 import json
-from arc_agi_testing.schemas import ARCTask, TestedTask
+from arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt
 
 class ARCScorer:
     def __init__(self, task_dir: str, submission_dir: str, print_logs: bool = False, results_dir: str = None):
@@ -28,7 +28,7 @@ class ARCScorer:
         return solutions
 
     @staticmethod
-    def score_task(task: ARCTask, testing_results: TestedTask) -> Tuple[float, float, int]:
+    def score_task(task: ARCTask, testing_results: BenchmarkedTaskResults) -> Tuple[float, float, int]:
         """
         Score a task against the solutions.
         """
@@ -44,26 +44,18 @@ class ARCScorer:
             pair_index_found = False
             
             # First, check if pair_index is directly in the attempt data
-            for attempt_key in pair_attempts:
-                attempt_data = pair_attempts[attempt_key] # Get data first
+            for attempt_data in pair_attempts:
                 
                 # Skip None attempts silently when just looking for pair_index
                 if attempt_data is None: 
                     continue
                 
                 # Validate structure if data is present
-                if not isinstance(attempt_data, dict):
-                    raise TypeError(f"Task {task_id}, Attempt {attempt_key}: Expected dictionary for attempt data, got {type(attempt_data)}")
-                if 'metadata' not in attempt_data:
-                    raise KeyError(f"Task {task_id}, Attempt {attempt_key}: Missing 'metadata' key.")
-                if 'pair_index' not in attempt_data['metadata']:
-                     # Don't raise error here yet, another attempt might have it
-                     # But log a warning if desired
-                     self.print_log(f"    Warning: Task {task_id}, Attempt {attempt_key}: Missing 'pair_index' in 'metadata'.")
-                     continue # Check next attempt for pair_index
+                if not isinstance(attempt_data, Attempt):
+                    raise TypeError(f"Expected Attempt object, got {type(attempt_data)}")
 
                 # If checks pass, try to use this pair_index
-                pair_index = attempt_data['metadata']['pair_index']
+                pair_index = attempt_data.metadata.pair_index
                 if 0 <= pair_index < num_pairs:  # Validate the index
                     pair_index_found = True
                     break # Found a valid index, stop searching attempts for this pair
@@ -77,52 +69,39 @@ class ARCScorer:
                 
             # Skip if the final pair_index (either found or fallback) is out of bounds
             if not (0 <= pair_index < num_pairs):
-                self.print_log(f"    Warning: Invalid or out-of-bounds pair_index {pair_index} derived for pair {enum_pair_index} in task {task_id}, skipping pair.")
+                print(f"    Warning: Invalid or out-of-bounds pair_index {pair_index} derived for pair {enum_pair_index} in task {task_id}, skipping pair.")
                 continue
             
             # Count all attempts in this pair, regardless of whether we process them all
             num_attempts += len(pair_attempts)
             
             # Calculate costs for all attempts upfront
-            for attempt_key in pair_attempts:
-                attempt_data = pair_attempts[attempt_key]
+            for attempt_data in pair_attempts:
                 if attempt_data is None:
                     continue
                 
                 # Validate structure for cost calculation
-                if not isinstance(attempt_data, dict):
+                if not isinstance(attempt_data, Attempt):
                      # This case should have been caught by the pair_index loop, but double-check
-                    raise TypeError(f"Task {task_id}, Pair {pair_index}, Attempt {attempt_key}: Expected dictionary for attempt data, got {type(attempt_data)}")
-                if 'metadata' in attempt_data and 'cost' in attempt_data['metadata']:
-                    attempt_cost = attempt_data['metadata']['cost'].get('total_cost', 0.0)
-                    task_cost += attempt_cost
-                # Optionally log or raise if metadata or cost is missing?
-                else:
-                    self.print_log(f"    Warning: Task {task_id}, Pair {pair_index}, Attempt {attempt_key}: Missing metadata or cost info.")
+                    raise TypeError(f"Attempt {attempt_data} is not an Attempt object")
+                    
+                task_cost += attempt_data.metadata.cost.total_cost
             
             pair_correct = False
             
-            for attempt_key in pair_attempts:
-                attempt_data = pair_attempts[attempt_key]
+            for attempt_index, attempt_data in enumerate(pair_attempts):
 
                 if attempt_data is None:
-                    self.print_log(f"    No prediction for {task_id}, pair {pair_index}, attempt {attempt_key}")
+                    print(f"    No prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
                     continue
                 
-                # Validate structure before checking answer
-                if not isinstance(attempt_data, dict):
-                     # This case should have been caught by the pair_index loop, but double-check
-                    raise TypeError(f"Task {task_id}, Pair {pair_index}, Attempt {attempt_key}: Expected dictionary for attempt data, got {type(attempt_data)}")
-                if 'answer' not in attempt_data:
-                    raise KeyError(f"Task {task_id}, Pair {pair_index}, Attempt {attempt_key}: Missing 'answer' key.")
-
                 # Handle empty list answer (treat as incorrect attempt)
-                if attempt_data['answer'] == []:
-                    self.print_log(f"    Empty list prediction for {task_id}, pair {pair_index}, attempt {attempt_key}")
+                if attempt_data.answer == []:
+                    print(f"    Empty list prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
                     continue
 
                 # Check for exact match
-                if attempt_data['answer'] == self.solutions[task_id]['test'][pair_index]['output']:
+                if attempt_data.answer == task.test[pair_index].output:
                     pair_correct = True
                     break
 
@@ -144,7 +123,8 @@ class ARCScorer:
         Returns a dictionary containing task_score, task_cost, num_attempts.
         """
         with submission_path.open() as f:
-            task_submission = TestedTask(**json.load(f))
+            json_data = json.load(f)
+            task_submission = BenchmarkedTaskResults(test_pairs=json_data)
         task = ARCTask.from_dict(self.solutions[task_id]) 
         return self.score_task(task, task_submission)
 
