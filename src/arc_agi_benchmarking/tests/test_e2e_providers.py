@@ -91,12 +91,11 @@ def test_gpt_4o_provider_e2e_mocked(mock_init_provider): # REMOVE mock_backscan_
     # Instantiate ARCTester with test parameters
     arc_tester = ARCTester(
         config=PROVIDER_CONFIG,
-        save_submission_dir=SAVE_DIR, 
+        save_submission_dir=SAVE_DIR,
         overwrite_submission=True, # Ensure we run even if file exists somehow
         print_submission=True, # Print submission for verification
         num_attempts=NUM_ATTEMPTS,
-        retry_attempts=RETRY_ATTEMPTS,
-        print_logs=True # Enable logs to see output
+        retry_attempts=RETRY_ATTEMPTS
     )
    
     # Run the main logic

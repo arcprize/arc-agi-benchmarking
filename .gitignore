@@ -164,13 +164,13 @@ cython_debug/
 .DS_Store
 
 # local files
-plan.md
+*plan*.md
 .python-version
 .vscode/
-plan*.md
 models_private.yml
 .cursor
-
-# ignore local files
-*_local.sh
-*_plan.md
+submissions*/*
+metrics_output/*
+benchmarking.md
+debug*.md
+data/task_lists/sample_10_tasks.txt

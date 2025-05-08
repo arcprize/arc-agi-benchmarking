@@ -11,7 +11,7 @@ run_test() {
     echo "🔄 Testing task: ${task_id}, config: ${config_name:-default}"
     
     # Build the command with model as the config
-    local cmd="python3 -m main --data_dir data/arc-agi/data/evaluation --config \"${config_name}\" --task_id \"${task_id}\" --save_submission_dir . --print_logs"
+    local cmd="python3 -m main --data_dir data/arc-agi/data/evaluation --config \"${config_name}\" --task_id \"${task_id}\" --save_submission_dir ."
     
     # Add config_name if provided (for future use if needed)
     # if [ -n "$config_name" ]; then

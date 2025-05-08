@@ -8,7 +8,7 @@ from arc_agi_benchmarking.utils.task_utils import read_models_config
 class ProviderAdapter(abc.ABC):
     def __init__(self, config: str):
         """
-        Initialize the provider adapter with model configuration
+        Initialize the provider adapter with model configuration.
         
         Args:
             config: Configuration name that identifies the model and its settings

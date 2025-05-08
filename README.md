@@ -11,55 +11,123 @@ This repo contains code for testing model baselines on ARC-AGI. The input data i
 
 `pip install -r requirements.txt`
 
+To enable provider-specific API error handling for retries (e.g., for OpenAI, Anthropic, Google), ensure their respective SDKs are installed. For example:
+`pip install openai anthropic google-api-python-client`
+
 ## ARC-AGI-1 vs ARC-AGI-2
 
-The task format for ARC-AGI-1 and ARC-AGI-2 are identical. You can point this testing harness towards ARC-AGI-2 via the `--data_dir` parameter. When running with concurrency, ensure you're using the correct `<task_list>.txt` found in `data/task_lists/` for the set you're testing.
+The task format for ARC-AGI-1 and ARC-AGI-2 are identical. You can point this testing harness towards ARC-AGI-2 via the `--data_dir` parameter. Ensure you\'re using the correct `<task_list>.txt` found in `data/task_lists/` for the set you\'re testing.
 
-## Testing a single task
+## Efficient Batch Testing with `cli/run_all.py` (Recommended)
 
-To test a single task, run:
-`python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet--task_id 0a1d4ef5 --print_logs`
+The primary and recommended method for running multiple ARC tasks against various model configurations is the `cli/run_all.py` script. This script leverages `asyncio` for efficient concurrency within a single Python process, replacing the need for external tools like `GNU parallel`.
 
-Use the optional parameters to save and print the submission:
+**Key Features & Benefits:**
 
-`python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs`
+*   **Concurrency:** Runs multiple (task, model_config) pairs concurrently using `asyncio`.
+*   **Rate Limiting:** Implements proactive provider-level rate limiting. Configure limits (requests per period) in `provider_config.yml`.
+*   **Resilient Retries:** Uses the `tenacity` library for automatic, exponential backoff retries on transient API errors (e.g., rate limit errors, server-side issues).
+*   **Centralized Logging:** Consistent logging across the orchestrator and individual task solvers (`ARCTester`). Log verbosity is controlled via the `--log-level` argument (options: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `NONE`).
+*   **Optional Metrics:** Performance timing metrics are **disabled by default**. They can be enabled using the `--enable-metrics` flag if detailed performance data is needed.
+*   **Simplified Workflow:** Manages all aspects of a batch run, from task queuing to result aggregation.
 
-This will write one `<id>.json` file per task.
+**Example Usage:**
 
-## Running with concurrency
-Testing multiple tasks in a single run can be slow. You can use the your parallel technique of choice to speed this up.
+```bash
+# Run all tasks from public_evaluation_v1.txt against gpt-4o and claude_opus,
+# with 2 attempts per task, INFO level logging, and metrics enabled.
+python cli/run_all.py \\
+    --task_list_file data/task_lists/public_evaluation_v1.txt \\
+    --model_configs "gpt-4o-2024-11-20,claude_opus" \\
+    --num_attempts 2 \\
+    --log-level INFO \\
+    --enable-metrics
 
-For example with the `parallel` [command](https://www.gnu.org/software/parallel/):
+# Run a smaller set of tasks, with metrics disabled (default) and minimal logging
+python cli/run_all.py \\
+    --task_list_file data/task_lists/sample_tasks.txt \\
+    --model_configs "gpt-4o-2024-11-20" \\
+    --log-level WARNING
+```
 
-`brew install parallel`
+**Key CLI Arguments for `cli/run_all.py`:**
 
-`parallel --jobs 20 --progress python3 -m main --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_20241022 --print_logs :::: ./data/task_lists/public_evaluation_v1.txt`
+*   `--task_list_file`: Path to the `.txt` file containing task IDs (one per line). (Default: `data/task_lists/public_evaluation_v1.txt`)
+*   `--model_configs`: Comma-separated list of model configuration names from `models.yml`. (Default: `gpt-4o-2024-11-20`)
+*   `--data_dir`: Data set directory. (Default: `data/arc-agi/data/evaluation`)
+*   `--submissions-root`: Root folder to save submissions. Subfolders per config will be created. (Default: `submissions`)
+*   `--overwrite_submission`: Overwrite existing submissions. (Default: `False`)
+*   `--print_submission`: Enable `ARCTester` to log final submission content (at INFO level). (Default: `False`)
+*   `--num_attempts`: Number of attempts by `ARCTester` for each prediction. (Default: `2`)
+*   `--retry_attempts`: Number of internal retry attempts by `ARCTester` for failed predictions. (Default: `2`)
+*   `--log-level`: Set logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `NONE`). (Default: `INFO`)
+*   `--enable-metrics`: Enable metrics collection and dumping (disabled by default). (Default: `False`)
 
-Note: In order to use parllel you'll need a list of task ids. `generate_tasks_list.py` helps with this. Public data task ids are already supplied.
+**Provider Rate Limit Configuration (`provider_config.yml`):**
 
-`python3 -m arc_agi_benchmarking.utils.generate_tasks_list --task_dir data/arc-agi/data/training --output_file data/task_lists/public_training`
+Create a `provider_config.yml` file in the project root to specify API rate limits for different providers. If this file is not found, or a provider is not listed, a default rate limit (e.g., 400 requests / 60 seconds) will be used with a warning.
+
+Example `provider_config.yml`:
+```yaml
+openai:
+  rate: 5000    # Max requests
+  period: 60    # Time period in seconds (e.g., 60 for per minute)
+  # Calculated as 5000 requests per 60 seconds
+
+anthropic:
+  rate: 1000
+  period: 60
+
+gemini:
+  rate: 60
+  period: 60
+# ... add other providers as needed
+```
+
+## Testing a Single Task (for Debugging or Detailed Analysis)
+
+While `cli/run_all.py` is recommended for batch runs, you can still test a single task using `main.py`. This is useful for debugging specific tasks or adapter configurations.
+
+```bash
+python main.py --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id 0a1d4ef5 --log-level DEBUG --enable-metrics
+```
+Note: `main.py` also supports `--log-level` and `--enable-metrics` (metrics are disabled by default).
+
+## Legacy Concurrency: Running with `GNU parallel` (Alternative)
+Previously, `GNU parallel` was suggested for concurrency. While `cli/run_all.py` is now the preferred method due to its integrated features, you can still use `parallel` if needed, but it will not benefit from the built-in rate limiting, tenacity retries, or centralized logging of `cli/run_all.py`.
+
+Example with `parallel`:
+```bash
+# brew install parallel # If not already installed
+parallel --jobs 20 --progress python main.py --data_dir data/arc-agi/data/evaluation --config claude_sonnet --task_id {} --save_submission_dir submissions/claude_sonnet_parallel --log-level WARNING :::: ./data/task_lists/public_evaluation_v1.txt
+```
+
+To generate a task list for `parallel`:
+`python src.utils.generate_tasks_list.py --task_dir data/arc-agi/data/training --output_file data/task_lists/public_training.txt`
 
 ## Scoring
 
 You can score your submissions by pointing the scoring script at your submissions directory:
 
-`python3 -m arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/claude_sonnet_20241022 --print_logs --results_dir results/claude_sonnet_20241022`
-
-Note: You'll also need to tell the script which task set to score.
+`python src.scoring.scoring.py --task_dir data/arc-agi/data/evaluation --submission_dir submissions/gpt-4o-2024-11-20 --results_dir results/gpt-4o-2024-11-20`
+(Note: The old `--print_logs` for scoring might be replaced by standard logging; check scoring script.)
 
 ## Results
 
-Results are stored in the `results` folder. You can view historical results for models here.
+Results from the scoring script are stored in the `results` folder. Performance metrics from `cli/run_all.py` (if enabled) are saved in the `metrics_output` directory by default.
 
 # Contributing
 
-This repo is welcome to contributions!
-
-Specifically, we would love help adding more model adapters to the `arc_agi_benchmarking/adapters` folder.
-
-More will get added by the ARC-AGI team, but we'll also gladly accept contributions from the community.
+This repo welcomes contributions! Specifically, we would love help adding more model adapters to the `src/arc_agi_benchmarking/adapters` folder.
 
 For more information visit the [ARC Prize](https://arcprize.org/).
+
+## Contributing: Testing Providers
+
+When implementing new providers or modifying existing ones, utilize `cli/run_all.py` for thorough testing across multiple tasks. This script provides a more robust testing environment than isolated single-task runs.
+The `test_providers.sh` script was previously used for basic validation. While it might still offer some utility for quick checks, `cli/run_all.py` with a small task list is recommended for evaluating provider behavior under concurrency and rate limiting.
+
+(The rest of the README, including sections on CLI Usage for Hugging Face, Adding New Providers/Models, and Running Tests (`pytest`), can remain largely as is, but ensure consistency with python/python3 and any new logging/metric flags if those scripts are also updated.)
 
 ### CLI Usage
 
@@ -189,7 +257,7 @@ The `test_providers.sh` script includes examples of testing the same model with 
 
 ### 1. Configure Models in models.yml
 
-New models are defined in `arc_agi_benchmarking/models.yml`. Each model requires:
+New models are defined in `src/arc_agi_benchmarking/models.yml`. Each model requires:
 
 ```yaml
 models:
@@ -280,17 +348,17 @@ After running tests with different configurations, you can compare their perform
 
 ```bash
 # Score short response configuration
-python3 -m arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
+python3 -m src/arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_short --print_logs --results_dir results/o1_short
 
 # Score long response configuration
-python3 -m arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
+python3 -m src/arc_agi_benchmarking.scoring.scoring --task_dir data/arc-agi/data/evaluation --submission_dir submissions/o1_long --print_logs --results_dir results/o1_long
 ```
 
 This allows you to systematically evaluate how different parameter settings affect model performance on ARC-AGI tasks.
 
 ### 3. Create Provider Adapter
 
-1. Create a new file in `arc_agi_benchmarking/adapters/` (e.g., `my_provider.py`)
+1. Create a new file in `src/arc_agi_benchmarking/adapters/` (e.g., `my_provider.py`)
 2. Implement the `ProviderAdapter` class:
    ```python
    from .provider import ProviderAdapter

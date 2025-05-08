@@ -1,0 +1,33 @@
+# Provider-specific API rate limits
+# Used by the asyncio orchestrator (cli/run_all.py) to configure AsyncRequestRateLimiter.
+# 'rate' is the number of allowed requests per 'period' seconds.
+
+openai:
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
+
+anthropic:
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
+
+# Provider key for Gemini models, should match 'provider' field in models.yml
+gemini:
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
+
+deepseek:
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
+
+# Assuming 'fireworks' is a general provider key for models hosted on Fireworks AI
+# (e.g., QwQ-32B-Fireworks, o3-mini)
+fireworks:
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
+
+grok:
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
+
+# Add other provider keys (matching models.yml 'provider' field) and their limits as needed.
+# Ensure these provider keys exactly match what's in your models.yml for each model config. 

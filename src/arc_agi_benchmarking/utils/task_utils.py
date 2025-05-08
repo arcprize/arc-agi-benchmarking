@@ -110,3 +110,44 @@ def read_models_config(config: str) -> ModelConfig:
             return ModelConfig(**model)
             
     raise ValueError(f"No matching configuration found for '{config}'")
+
+def read_provider_rate_limits() -> dict:
+    """
+    Reads and parses the provider_config.yml file to get rate limit configurations.
+
+    Assumes provider_config.yml is in the same base directory as models.yml.
+
+    Returns:
+        dict: A dictionary where keys are provider names and values are dicts
+              containing 'rate' and 'period'.
+              Example: {'openai': {'rate': 60, 'period': 60}}
+
+    Raises:
+        FileNotFoundError: If provider_config.yml is not found.
+        yaml.YAMLError: If there is an error parsing the YAML file.
+    """
+    # Go up three levels from src/utils/task_utils.py to get to project root
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    provider_config_file = os.path.join(base_dir, "provider_config.yml")
+
+    if not os.path.exists(provider_config_file):
+        raise FileNotFoundError(f"provider_config.yml not found at {provider_config_file}")
+
+    with open(provider_config_file, 'r') as f:
+        try:
+            rate_limits_data = yaml.safe_load(f)
+            if not isinstance(rate_limits_data, dict):
+                raise yaml.YAMLError("provider_config.yml root should be a dictionary of providers.")
+            # Basic validation for each provider's config
+            for provider, limits in rate_limits_data.items():
+                if not isinstance(limits, dict) or 'rate' not in limits or 'period' not in limits:
+                    raise yaml.YAMLError(
+                        f"Provider '{provider}' in provider_config.yml must have 'rate' and 'period' keys."
+                    )
+                if not isinstance(limits['rate'], int) or not isinstance(limits['period'], int):
+                    raise yaml.YAMLError(
+                        f"'rate' and 'period' for provider '{provider}' must be integers."
+                    )
+            return rate_limits_data
+        except yaml.YAMLError as e:
+            raise yaml.YAMLError(f"Error parsing provider_config.yml: {e}")

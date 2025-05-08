@@ -37,9 +37,6 @@ class GeminiAdapter(ProviderAdapter):
         """
         start_time = datetime.now(timezone.utc)
         
-        # Get input token count before making the request
-        input_tokens = self.client.count_tokens(prompt)
-        logger.debug(f"Input tokens count: {input_tokens}")
         
         messages = [{"role": "user", "content": prompt}]
         response = self.chat_completion(messages)
