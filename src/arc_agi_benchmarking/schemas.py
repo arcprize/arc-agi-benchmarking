@@ -140,6 +140,7 @@ class AttemptMetadata(BaseModel):
 class Attempt(BaseModel):
     answer: Union[str, List[List[int]]]
     metadata: AttemptMetadata
+    correct: Optional[bool] = None
     
     @model_validator(mode='before')
     @classmethod

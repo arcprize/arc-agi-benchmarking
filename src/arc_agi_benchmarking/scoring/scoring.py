@@ -32,7 +32,8 @@ class ARCScorer:
     @staticmethod
     def score_task(task: ARCTask, testing_results: BenchmarkedTaskResults) -> ScoringResult:
         """
-        Score a task against the solutions.
+        Go through each attempt for each pair in the testing results and set the correct flag.
+        Also evaluate whether any attempt is correct and the total cost, and return a ScoringResult object.
         """
         
         task_score = 0
@@ -47,9 +48,8 @@ class ARCScorer:
             
             # First, check if pair_index is directly in the attempt data
             for attempt_data in pair_attempts:
-                
-                # Skip None attempts silently when just looking for pair_index
                 if attempt_data is None: 
+                    warnings.warn(f"No attempt data found for pair {enum_pair_index}, skipping pair.")
                     continue
                 
                 # Validate structure if data is present
@@ -63,6 +63,7 @@ class ARCScorer:
                     break # Found a valid index, stop searching attempts for this pair
                 else:
                     # Invalid index found in this attempt, reset and check next attempt
+                    warnings.warn(f"Invalid pair_index {pair_index} found in attempt {attempt_data.metadata.task_id}, pair {enum_pair_index}, skipping pair.")
                     pair_index = None 
 
             # If not found in any attempt's metadata, fall back to enumeration index
@@ -77,8 +78,9 @@ class ARCScorer:
             # Count all attempts in this pair, regardless of whether we process them all
             num_attempts += len(pair_attempts)
             
+            any_attempt_correct = False
             # Calculate costs for all attempts upfront
-            for attempt_data in pair_attempts:
+            for attempt_index, attempt_data in enumerate(pair_attempts):
                 if attempt_data is None:
                     continue
                 
@@ -89,25 +91,17 @@ class ARCScorer:
                     
                 task_cost += attempt_data.metadata.cost.total_cost
             
-            pair_correct = False
-            
-            for attempt_index, attempt_data in enumerate(pair_attempts):
-
                 if attempt_data is None:
-                    print(f"    No prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
+                    warnings.warn(f"No prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
                     continue
-                
-                # Handle empty list answer (treat as incorrect attempt)
                 if attempt_data.answer == []:
-                    print(f"    Empty list prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
+                    warnings.warn(f"Empty list prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
                     continue
 
-                # Check for exact match
-                if attempt_data.answer == task.test[pair_index].output:
-                    pair_correct = True
-                    break
+                attempt_data.correct = attempt_data.answer == task.test[pair_index].output
+                any_attempt_correct = any_attempt_correct or attempt_data.correct
 
-            if pair_correct:
+            if any_attempt_correct:
                 task_score += 1
 
         scoring_result = ScoringResult(
