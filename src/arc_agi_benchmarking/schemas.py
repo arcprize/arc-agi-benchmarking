@@ -40,9 +40,27 @@ class ARCTask(BaseModel):
         return self.__repr__()
     
     def get_hash(self) -> str:
-        """Generate a stable hash of the entire task"""
-        task_json = json.dumps(self.model_dump(), sort_keys=True)
-        return hashlib.sha256(task_json.encode()).hexdigest()[:8]
+        """Generate a stable hash of the form XXXXX-XXXXX-XXXXX_XXXXX-XXXXX-XXXXX where
+        the first set is one hash for each train pair, and the second set is one hash for each test pair"""
+        # Generate hash for each train pair
+        train_hashes = []
+        for pair in self.train:
+            pair_json = json.dumps(pair.model_dump(), sort_keys=True)
+            pair_hash = hashlib.sha256(pair_json.encode()).hexdigest()[:5]
+            train_hashes.append(pair_hash)
+        
+        # Generate hash for each test pair
+        test_hashes = []
+        for pair in self.test:
+            pair_json = json.dumps(pair.model_dump(), sort_keys=True)
+            pair_hash = hashlib.sha256(pair_json.encode()).hexdigest()[:5]
+            test_hashes.append(pair_hash)
+        
+        # Format as XXXXX-XXXXX-XXXXX_XXXXX-XXXXX-XXXXX
+        train_part = "-".join(train_hashes)
+        test_part = "-".join(test_hashes)
+        
+        return f"{train_part}_{test_part}"
     
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -102,7 +120,7 @@ class AttemptMetadata(BaseModel):
     usage: Usage
     cost: Cost
     task_id: Optional[str] = None
-    pair_index: Optional[int] = None
+    pair_index: Optional[int] = 0
     test_id: Optional[str] = None
     
     model_config = {
