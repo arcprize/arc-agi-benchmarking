@@ -28,7 +28,7 @@ class ARCScorer:
         return solutions
 
     @staticmethod
-    def score_task(task: ARCTask, testing_results: BenchmarkedTaskResults) -> Tuple[float, float, int]:
+    def score_task(task: ARCTask, testing_results: BenchmarkedTaskResults) -> Dict[str, float]:
         """
         Score a task against the solutions.
         """
@@ -117,7 +117,7 @@ class ARCScorer:
         return scoring_result
 
 
-    def score_task_from_file(self, task_id: str, submission_path: Path) -> Tuple[float, float, int]:
+    def score_task_from_file(self, task_id: str, submission_path: Path) -> Dict[str, float]:
         """
         Scores a single task submission against the solutions.
         Returns a dictionary containing task_score, task_cost, num_attempts.
