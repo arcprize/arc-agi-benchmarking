@@ -221,10 +221,6 @@ class BenchmarkedTaskResults(BaseModel):
     def __iter__(self):
         return iter(self.test_pairs)
     
-    
-
-    
-
 class ModelPricing(BaseModel):
     date: str
     input: float
@@ -271,3 +267,11 @@ class ModelConfig(BaseModel):
                     del values[field_name]
                     
         return values
+
+class ScoringResult(BaseModel):
+    """
+    Result of scoring a task, containing the score (accuracy), cost, and number of attempts.
+    """
+    score: float  # Score between 0.0 and 1.0 representing accuracy
+    total_cost: float   # Total cost of all attempts
+    attempts: int # Total number of attempts made

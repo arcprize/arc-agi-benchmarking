@@ -3,8 +3,10 @@ from typing import List, Tuple
 from pathlib import Path
 from typing import List, Tuple, Dict
 import json
-from arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt
+from arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt, ScoringResult
 import warnings
+
+
 class ARCScorer:
     def __init__(self, task_dir: str, submission_dir: str, print_logs: bool = False, results_dir: str = None):
         self.task_dir = Path(task_dir)
@@ -28,7 +30,7 @@ class ARCScorer:
         return solutions
 
     @staticmethod
-    def score_task(task: ARCTask, testing_results: BenchmarkedTaskResults) -> Dict[str, float]:
+    def score_task(task: ARCTask, testing_results: BenchmarkedTaskResults) -> ScoringResult:
         """
         Score a task against the solutions.
         """
@@ -108,16 +110,16 @@ class ARCScorer:
             if pair_correct:
                 task_score += 1
 
-        scoring_result = {
-            "score": task_score / num_pairs if num_pairs > 0 else 0.0,
-            "cost": task_cost,
-            "attempts": num_attempts
-        }
+        scoring_result = ScoringResult(
+            score=task_score / num_pairs if num_pairs > 0 else 0.0,
+            total_cost=task_cost,
+            attempts=num_attempts
+        )
 
         return scoring_result
 
 
-    def score_task_from_file(self, task_id: str, submission_path: Path) -> Dict[str, float]:
+    def score_task_from_file(self, task_id: str, submission_path: Path) -> ScoringResult:
         """
         Scores a single task submission against the solutions.
         Returns a dictionary containing task_score, task_cost, num_attempts.
@@ -146,18 +148,18 @@ class ARCScorer:
             task_id = submission_file.stem
             scoring_result = self.score_task_from_file(task_id, submission_file)
             
-            total_score += scoring_result["score"]
+            total_score += scoring_result.score
             total_tasks += 1
-            self.total_cost += scoring_result["cost"]
-            self.total_attempts += scoring_result["attempts"]
+            self.total_cost += scoring_result.cost
+            self.total_attempts += scoring_result.attempts
             
             task_results[task_id] = {
-                "score": scoring_result['score'],
-                "cost": scoring_result['cost'],
-                "attempts": scoring_result['attempts']
+                "score": scoring_result.score,
+                "cost": scoring_result.cost,
+                "attempts": scoring_result.attempts
             }
 
-            self.print_log(f"    Task {task_id} score: {scoring_result['score']:.2f}, cost: ${scoring_result['cost']:.4f}, attempts: {scoring_result['attempts']}")
+            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.cost:.4f}, attempts: {scoring_result.attempts}")
 
         # Calculate average costs
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
