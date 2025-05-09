@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict
 import json
 from arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt
-
+import warnings
 class ARCScorer:
     def __init__(self, task_dir: str, submission_dir: str, print_logs: bool = False, results_dir: str = None):
         self.task_dir = Path(task_dir)
@@ -122,11 +122,21 @@ class ARCScorer:
         Scores a single task submission against the solutions.
         Returns a dictionary containing task_score, task_cost, num_attempts.
         """
+        # try:
         with submission_path.open() as f:
             json_data = json.load(f)
             task_submission = BenchmarkedTaskResults(test_pairs=json_data)
         task = ARCTask.from_dict(self.solutions[task_id]) 
         return self.score_task(task, task_submission)
+        # except Exception as e:
+        #     # this is needed to pass "test_none_submission" in test_scoring.py,
+        #     # but it seems wrong to me.
+        #     warnings.warn(f"Error scoring task {task_id}: {e}")
+        #     return {
+        #         "score": 0.0,
+        #         "cost": 0.0,
+        #         "attempts": 1
+        #     }
 
 
     def score_submission(self) -> Tuple[float, int]:
