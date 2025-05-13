@@ -166,7 +166,7 @@ class Attempt(BaseModel):
     }
 
 class TestPairAttempts(BaseModel):
-    attempts: Union[List[Optional[Attempt]], Dict[str, Optional[Attempt]]]
+    attempts: List[Optional[Attempt]]
 
     @model_validator(mode='before')
     @classmethod
