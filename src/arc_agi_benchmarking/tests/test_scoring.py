@@ -226,9 +226,9 @@ def run_test_scenario(arc_scorer_fixture, submission_data, expected_score, expec
 
     result = scorer.score_task_from_file(task_id, submission_file)
 
-    assert result["score"] == pytest.approx(expected_score)
-    assert result["cost"] == pytest.approx(expected_cost)
-    assert result["attempts"] == expected_attempts
+    assert result.score == pytest.approx(expected_score)
+    assert result.total_cost == pytest.approx(expected_cost)
+    assert result.attempts == expected_attempts
 
 
 
