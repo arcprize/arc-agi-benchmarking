@@ -92,7 +92,7 @@ class ARCScorer:
             for attempt_index, attempt_data in enumerate(pair_attempts):
 
                 if attempt_data is None:
-                    print(f"    No prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
+                    print(f"    No prediction for task {task.get_hash()}, pair {pair_index}, attempt {attempt_index}")
                     continue
                 
                 # Handle empty list answer (treat as incorrect attempt)
