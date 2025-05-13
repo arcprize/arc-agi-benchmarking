@@ -92,7 +92,7 @@ class ARCScorer:
                 task_cost += attempt_data.metadata.cost.total_cost
             
                 if attempt_data is None:
-                    warnings.warn(f"No prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
+                    print(f"    No prediction for task {task.get_hash()}, pair {pair_index}, attempt {attempt_index}")
                     continue
                 if attempt_data.answer == []:
                     warnings.warn(f"Empty list prediction for {attempt_data.metadata.task_id}, pair {pair_index}, attempt {attempt_index}")
