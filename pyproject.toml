@@ -48,8 +48,6 @@ dependencies = [
     "google-auth==2.38.0",
     "google-genai==1.14.0",
     "googleapis-common-protos==1.68.0",
-    "grpcio==1.60.1",
-    "grpcio-status==1.60.1",
     "openai==1.75.0",
     "proto-plus==1.26.0",
     "protobuf==5.29.3",
@@ -58,8 +56,6 @@ dependencies = [
     "requests==2.32.3",
     "rsa==4.9",
     "uritemplate==4.1.1"
-    # "grpcio==1.60.1",
-    # "grpcio-status==1.60.1",
 ]
 
 description = "Code for testing model on ARC-AGI-Bench"
