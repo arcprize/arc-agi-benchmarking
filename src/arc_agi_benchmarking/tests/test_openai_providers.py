@@ -282,7 +282,7 @@ class TestOpenAIBaseProviderLogic:
         
         # Patch the methods on the *specific class* being tested
         with patch.object(adapter_class, '_call_ai_model') as mock_call_ai, \
-             patch.object(adapter_class, '_get_content', return_value="{Test Answer}") as mock_get_content, \
+             patch.object(adapter_class, '_get_content', return_value='[[1]]') as mock_get_content, \
              patch.object(adapter_class, '_get_role', return_value="assistant") as mock_get_role:
 
             mock_call_ai.return_value = mock_response_case_a_no_reasoning # Use the Case A fixture
@@ -295,7 +295,7 @@ class TestOpenAIBaseProviderLogic:
             assert mock_get_role.called
             
             # Check the final attempt object metadata
-            assert attempt.answer == "{Test Answer}"
+            assert attempt.answer == [[1]]
             assert attempt.metadata.model == adapter_instance.model_config.model_name
             assert attempt.metadata.provider == adapter_instance.model_config.provider
             assert attempt.metadata.usage.prompt_tokens == 100
@@ -320,4 +320,4 @@ class TestOpenAIBaseProviderLogic:
             assert attempt.metadata.choices[0].message.role == "user"
             assert attempt.metadata.choices[0].message.content == prompt
             assert attempt.metadata.choices[1].message.role == "assistant"
-            assert attempt.metadata.choices[1].message.content == "Test Answer"
+            assert attempt.metadata.choices[1].message.content == "[[1]]"
