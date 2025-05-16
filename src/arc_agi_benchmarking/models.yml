@@ -5,6 +5,16 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "codex-mini-latest"
+    model_name: "codex-mini-latest"
+    provider: "openai"
+    api_type: "responses"
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-05-16"
+      input: 1.50   # Standard input price; note: a cached input rate of 0.075 exists.
+      output: 6.00
+
   - name: "o3-2025-04-16-high"
     model_name: "o3-2025-04-16"
     provider: "openai"

@@ -141,29 +141,6 @@ class Attempt(BaseModel):
     answer: Union[str, List[List[int]]]
     metadata: AttemptMetadata
     correct: Optional[bool] = None
-    
-    @model_validator(mode='before')
-    @classmethod
-    def validate(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Ensure answer is properly serialized"""
-        if not isinstance(values, dict):
-            return values
-            
-        answer = values.get('answer')
-        if isinstance(answer, list):
-            # Convert nested list to string representation
-            values['answer'] = json.dumps(answer)
-
-        if isinstance(values['answer'], str):
-            values['answer'] = json.loads(values['answer'])
-            
-        return values
-    
-    model_config = {
-        'json_encoders': {
-            datetime: lambda v: v.isoformat()
-        }
-    }
 
 class TestPairAttempts(BaseModel):
     attempts: List[Optional[Attempt]]

@@ -114,7 +114,7 @@ Example of expected output format:
 
 IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting.
 """
-        completion = self.call_ai_model(
+        completion = self._call_ai_model(
             prompt=prompt
         )
 
