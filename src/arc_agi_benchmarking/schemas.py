@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator, root_validator
+from pydantic import BaseModel, model_validator, root_validator, field_validator
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 import json
@@ -141,6 +141,26 @@ class Attempt(BaseModel):
     answer: Union[str, List[List[int]]]
     metadata: AttemptMetadata
     correct: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_answer_present(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure the required 'answer' field exists."""
+        if isinstance(values, dict) and "answer" not in values:
+            raise KeyError("answer")
+        return values
+
+    @field_validator('answer', mode='before')
+    @classmethod
+    def parse_answer(cls, v: Union[str, List[List[int]]]):
+        """Parse answer strings using the backscan_json_parser."""
+        if isinstance(v, str):
+            from .utils.parsing import backscan_json_parser
+
+            parsed = backscan_json_parser(v)
+            if parsed is not None:
+                return parsed
+        return v
 
 class TestPairAttempts(BaseModel):
     attempts: List[Optional[Attempt]]

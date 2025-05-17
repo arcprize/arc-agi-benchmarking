@@ -15,7 +15,6 @@ import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
 from arc_agi_benchmarking.schemas import ARCTaskOutput, ARCPair, Attempt
 from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
-from arc_agi_benchmarking.utils.parsing import parse_and_validate_json
 from typing import List, Any, Optional
 import argparse
 import logging
@@ -79,24 +78,18 @@ class ARCTester:
         attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
 
         try:
-            # Always use the last choice in the array (which should be the assistant's response)
-            if attempt.metadata.choices:
-                last_choice = attempt.metadata.choices[-1]
-                if last_choice.message.content:
-                    parsed_answer = parse_and_validate_json(
-                        response=last_choice.message.content, 
-                        provider_extractor=self.provider.extract_json_from_response
-                    )
-                else:
-                    raise ValueError("Assistant response is empty")
-            else:
-                raise ValueError("No choices found in response")
-            
-            # Update the answer in the original attempt - now accepts List[List[int]]
-            attempt.answer = parsed_answer
+            # If the validator couldn't parse the answer, fall back to the provider extractor
+            if isinstance(attempt.answer, str):
+                parsed = self.provider.extract_json_from_response(attempt.answer)
+                if parsed is None:
+                    raise ValueError("Failed to parse answer")
+                attempt.answer = parsed
             return attempt
-        except (json.JSONDecodeError, ValueError) as e: # Catch parsing and validation errors
-            logger.error(f"Parsing/Validation failed for task {task_id}, test {test_id}, pair_index {pair_index}: {e}", exc_info=True)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(
+                f"Parsing/Validation failed for task {task_id}, test {test_id}, pair_index {pair_index}: {e}",
+                exc_info=True,
+            )
             raise
 
     @timeit
