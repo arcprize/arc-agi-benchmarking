@@ -66,7 +66,7 @@ python cli/run_all.py \
 *   `--task_list_file`: Path to the `.txt` file containing task IDs (one per line). (Default: `data/task_lists/public_evaluation_v1.txt`)
 *   `--model_configs`: Comma-separated list of model configuration names from `models.yml`. (Default: `gpt-4o-2024-11-20`)
 *   `--data_dir`: Data set directory. (Default: `data/arc-agi/data/evaluation`)
-*   `--submissions-root`: Root folder to save submissions. Subfolders per config will be created. (Default: `submissions`)
+*   `--submissions-root`: Root folder to save submissions. (Default: `submissions`)
 *   `--overwrite_submission`: Overwrite existing submissions. (Default: `False`)
 *   `--print_submission`: Enable `ARCTester` to log final submission content (at INFO level). (Default: `False`)
 *   `--num_attempts`: Number of attempts by `ARCTester` for each prediction. (Default: `2`)
