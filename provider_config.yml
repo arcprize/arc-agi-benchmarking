@@ -12,7 +12,7 @@ anthropic:
 
 # Provider key for Gemini models, should match 'provider' field in models.yml
 gemini:
-  rate: 300     # 300 requests (Updated from 5)
+  rate: 25     # 300 requests (Updated from 5)
   period: 60    # per 60 seconds
 
 deepseek:

@@ -73,15 +73,17 @@ class GeminiAdapter(ProviderAdapter):
         
         input_tokens = getattr(usage_metadata, 'prompt_token_count', 0) if usage_metadata else 0
         output_tokens = getattr(usage_metadata, 'candidates_token_count', 0) if usage_metadata else 0
+        reasoning_tokens = getattr(usage_metadata, 'thoughts_token_count', 0) if usage_metadata else 0
         total_tokens = getattr(usage_metadata, 'total_token_count', 0) if usage_metadata else 0
         
         response_text = getattr(response, 'text', "")
 
         input_cost_per_token = self.model_config.pricing.input / 1_000_000
         output_cost_per_token = self.model_config.pricing.output / 1_000_000
-        
+
         prompt_cost = input_tokens * input_cost_per_token
         completion_cost = output_tokens * output_cost_per_token
+        reasoning_cost = reasoning_tokens * output_cost_per_token
 
         input_choices = [
             Choice(index=i, message=Message(role=msg["role"], content=msg["content"]))
@@ -104,7 +106,7 @@ class GeminiAdapter(ProviderAdapter):
                 completion_tokens=output_tokens,
                 total_tokens=total_tokens,
                 completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0, # Gemini API does not explicitly provide reasoning tokens
+                    reasoning_tokens=reasoning_tokens,
                     accepted_prediction_tokens=output_tokens,
                     rejected_prediction_tokens=0
                 )
@@ -112,7 +114,8 @@ class GeminiAdapter(ProviderAdapter):
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
-                total_cost=prompt_cost + completion_cost
+                reasoning_cost=reasoning_cost,
+                total_cost=prompt_cost + completion_cost + reasoning_cost
             ),
             task_id=task_id, pair_index=pair_index, test_id=test_id
         )

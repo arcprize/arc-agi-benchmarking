@@ -29,9 +29,8 @@ from arc_agi_benchmarking.schemas import Attempt # Import Attempt schema
 )
 @patch('main.utils')
 @patch('main.ARCTester.init_provider')
-@patch('main.parse_and_validate_json') # Mock the parsing function directly
 def test_arctester_log_levels(
-    mock_parse_validate, mock_init_provider, mock_utils, caplog,
+    mock_init_provider, mock_utils, caplog,
     log_level_arg, expected_debug_present, expected_info_present
 ):
     """
@@ -47,14 +46,14 @@ def test_arctester_log_levels(
     # Create a mock Attempt object that can be dumped and has necessary attributes
     mock_attempt_obj = MagicMock(spec=Attempt)
     mock_attempt_obj.metadata = MagicMock()
-    # Simulate a response that the mocked parse_and_validate_json can handle
+    # Simulate a response that the extractor can handle
     mock_attempt_obj.metadata.choices = [MagicMock(message=MagicMock(content="Valid content for mock parser"))]
     # Define what model_dump should return - a serializable dict
     mock_attempt_obj.model_dump.return_value = {
         "task_id": "mock_task_001", 
         "test_id": "mock_config",
         "pair_index": 0,
-        "answer": [[1]], # This should match what mock_parse_validate returns
+        "answer": [[1]], # This should match what the extractor returns
         "metadata": {"usage": {"total_tokens": 10}} # Example metadata
     }
     # Mock make_prediction to return this mock Attempt
@@ -62,9 +61,8 @@ def test_arctester_log_levels(
     
     mock_init_provider.return_value = mock_provider_instance
 
-    # Mock parse_and_validate_json to return a valid answer structure
-    # This is called within get_task_prediction
-    mock_parse_validate.return_value = [[1]] 
+    # Mock provider extractor to return a valid answer structure when called
+    mock_provider_instance.extract_json_from_response.return_value = [[1]]
 
     mock_utils.validate_data.return_value = True
     mock_utils.submission_exists.return_value = False

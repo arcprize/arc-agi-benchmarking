@@ -346,6 +346,70 @@ models:
 #### Gemini ####
 ################
 
+
+  - name: "gemini-2-5-flash-preview-05-20"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "gemini"
+    max_output_tokens: 65536
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-05-20"
+      input: 0.15
+      output: 0.60
+
+  - name: "gemini-2-5-flash-preview-05-20-thinking-1k"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "gemini"
+    max_output_tokens: 65536
+    thinking_config:
+      thinking_budget: 1024
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-05-20"
+      input: 0.15
+      output: 3.50
+
+  - name: "gemini-2-5-flash-preview-05-20-thinking-8k"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "gemini"
+    max_output_tokens: 65536
+    thinking_config:
+      thinking_budget: 8000
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-05-20"
+      input: 0.15
+      output: 3.50
+
+  - name: "gemini-2-5-flash-preview-05-20-thinking-16k"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "gemini"
+    max_output_tokens: 65536
+    thinking_config:
+      thinking_budget: 16000
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-05-20"
+      input: 0.15
+      output: 3.50
+
+  - name: "gemini-2-5-flash-preview-05-20-thinking-24k"
+    model_name: "gemini-2.5-flash-preview-05-20"
+    provider: "gemini"
+    max_output_tokens: 65536
+    thinking_config:
+      thinking_budget: 24576
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-05-20"
+      input: 0.15
+      output: 3.50
+
   - name: "gemini-2-0-flash-001"
     model_name: "gemini-2.0-flash-001"
     provider: "gemini"

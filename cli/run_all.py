@@ -116,7 +116,6 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int) -> bool: # removed print_logs
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
-    save_submission_dir_for_config = os.path.join(submissions_root, config_name)
 
     # Apply tenacity retry decorator directly to the synchronous function
     # The logger passed to before_sleep_log is the module-level logger of cli.run_all
@@ -130,7 +129,7 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         logger.debug(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
         arc_solver = ARCTester(
             config=config_name,
-            save_submission_dir=save_submission_dir_for_config,
+            save_submission_dir=submissions_root,
             overwrite_submission=overwrite_submission,
             print_submission=print_submission, # This ARCTester arg controls if it logs submission content
             num_attempts=num_attempts,

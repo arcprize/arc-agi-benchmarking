@@ -31,22 +31,33 @@ The primary and recommended method for running multiple ARC tasks against variou
 *   **Optional Metrics:** Performance timing metrics are **disabled by default**. They can be enabled using the `--enable-metrics` flag if detailed performance data is needed.
 *   **Simplified Workflow:** Manages all aspects of a batch run, from task queuing to result aggregation.
 
+**Environment Setup (API Keys):**
+
+Before running the scripts, ensure you have a `.env` file in the root of the project. This file should contain the necessary API keys for the providers you intend to use. Copy the `.env.example` file to `.env` and fill in your API keys.
+
+For example, if you are using OpenAI, your `.env` file should include:
+`OPENAI_API_KEY="your_actual_openai_api_key"`
+
 **Example Usage:**
 
 ```bash
 # Run all tasks from public_evaluation_v1.txt against gpt-4o and claude_opus,
 # with 2 attempts per task, INFO level logging, and metrics enabled.
-python cli/run_all.py \\
-    --task_list_file data/task_lists/public_evaluation_v1.txt \\
-    --model_configs "gpt-4o-2024-11-20,claude_opus" \\
-    --num_attempts 2 \\
-    --log-level INFO \\
+python cli/run_all.py \
+    --task_list_file data/task_lists/public_evaluation_v1.txt \
+    --model_configs "gpt-4o-2024-11-20,claude_opus" \
+    --num_attempts 2 \
+    --log-level INFO \
     --enable-metrics
 
 # Run a smaller set of tasks, with metrics disabled (default) and minimal logging
-python cli/run_all.py \\
-    --task_list_file data/task_lists/sample_tasks.txt \\
-    --model_configs "gpt-4o-2024-11-20" \\
+# Note: 'data/task_lists/sample_tasks.txt' is an example path.
+# You will need to create this file yourself, for instance, by selecting a
+# subset of task IDs from a larger list like 'public_evaluation_v1.txt'
+# and saving them into 'data/task_lists/sample_tasks.txt' (one task ID per line).
+python cli/run_all.py \
+    --task_list_file data/task_lists/sample_tasks.txt \
+    --model_configs "gpt-4o-2024-11-20" \
     --log-level WARNING
 ```
 
@@ -55,7 +66,7 @@ python cli/run_all.py \\
 *   `--task_list_file`: Path to the `.txt` file containing task IDs (one per line). (Default: `data/task_lists/public_evaluation_v1.txt`)
 *   `--model_configs`: Comma-separated list of model configuration names from `models.yml`. (Default: `gpt-4o-2024-11-20`)
 *   `--data_dir`: Data set directory. (Default: `data/arc-agi/data/evaluation`)
-*   `--submissions-root`: Root folder to save submissions. Subfolders per config will be created. (Default: `submissions`)
+*   `--submissions-root`: Root folder to save submissions. (Default: `submissions`)
 *   `--overwrite_submission`: Overwrite existing submissions. (Default: `False`)
 *   `--print_submission`: Enable `ARCTester` to log final submission content (at INFO level). (Default: `False`)
 *   `--num_attempts`: Number of attempts by `ARCTester` for each prediction. (Default: `2`)
