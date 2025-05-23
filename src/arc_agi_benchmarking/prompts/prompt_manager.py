@@ -1,4 +1,5 @@
 import json
+import os
 from arc_agi_benchmarking.schemas import ARCPair
 from typing import List
 
@@ -7,7 +8,12 @@ def _load_prompt(prompt_name: str) -> str:
     Load a prompt from the prompts directory
     """
 
-    return open(f"src/arc_agi_benchmarking/prompts/{prompt_name}.txt", "r").read()
+    # Get the directory where this file is located
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(current_dir, f"{prompt_name}.txt")
+    
+    with open(prompt_path, "r") as f:
+        return f.read()
 
 def convert_task_pairs_to_prompt(training_pairs: List[ARCPair], test_input: ARCPair) -> str:
     """

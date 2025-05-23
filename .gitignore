@@ -174,5 +174,6 @@ metrics_output/*
 benchmarking.md
 debug*.md
 data/task_lists/sample_10_tasks.txt
+data/task_lists/sample_tasks.txt
 analyze_submission_times.py
 .cursorignore
