@@ -3,7 +3,7 @@ from typing import List, Tuple
 from pathlib import Path
 from typing import List, Tuple, Dict
 import json
-from src.arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt, ScoringResult
+from arc_agi_benchmarking.schemas import ARCTask, BenchmarkedTaskResults, Attempt, ScoringResult
 import warnings
 
 
