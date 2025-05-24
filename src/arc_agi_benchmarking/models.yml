@@ -278,6 +278,21 @@ models:
 #### Anthropic ####
 ###################
 
+  - name: "claude-4-sonnet-20250522-thinking-8k-bedrock"
+    model_name: "anthropic/claude-sonnet-4"
+    provider: "openrouter"
+    max_tokens: 32000
+    extra_body:
+      provider:
+        only:
+          - "amazon-bedrock"
+      reasoning:
+        "max_tokens": 8000
+    pricing:
+      date: "2025-05-23"
+      input: 3.00
+      output: 15.00 
+
   - name: "claude-3-7-sonnet-20250219"
     model_name: "claude-3-7-sonnet-20250219"
     provider: "anthropic"
