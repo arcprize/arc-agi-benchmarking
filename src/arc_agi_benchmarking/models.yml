@@ -112,6 +112,17 @@ models:
       input: 2.50   # Standard input price; note: a cached input rate of 1.25 exists.
       output: 10.00
 
+  - name: "gpt-4o-2024-05-13"
+    model_name: "gpt-4o-2024-05-13"
+    provider: "openai"
+    api_type: "responses"
+    max_completion_tokens: 4096
+    pricing:
+      date: "2025-05-13"
+      input: 5.00   
+      output: 15.00
+
+
   - name: "gpt-4o-mini-2024-07-18"
     model_name: "gpt-4o-mini-2024-07-18"
     provider: "openai"
