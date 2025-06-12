@@ -291,3 +291,6 @@ class ScoringResult(BaseModel):
     score: float  # Score between 0.0 and 1.0 representing accuracy
     total_cost: float   # Total cost of all attempts
     attempts: int # Total number of attempts made
+    output_tokens: int # Total number of output tokens used
+    duration: float # Total duration of all attempts in seconds
+    num_attempts_with_empty_list: int # Number of attempts that returned an empty list
