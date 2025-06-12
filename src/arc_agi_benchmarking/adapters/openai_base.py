@@ -10,8 +10,12 @@ from openai import OpenAI
 from datetime import datetime, timezone
 from arc_agi_benchmarking.schemas import APIType, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 from typing import Optional, Any, List, Dict # Added List, Dict
+from time import sleep
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
@@ -47,15 +51,36 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             **self.model_config.kwargs
         )
     
+    def _delete_response(self, response_id: str) -> None:
+        """
+        Delete a response from the OpenAI API
+        """
+        self.client.responses.delete(response_id)
+    
     def _responses(self, messages: List[Dict[str, str]]) -> Any:
         """
         Make a call to the OpenAI Responses API
         """
-        return self.client.responses.create(
+
+        resp = self.client.responses.create(
             model=self.model_config.model_name,
             input=messages,
             **self.model_config.kwargs
         )
+
+        # For background mode
+        if "background" in self.model_config.kwargs and self.model_config.kwargs["background"]:
+            while resp.status in {"queued", "in_progress"}:
+                sleep(10)
+                resp = self.client.responses.retrieve(resp.id)
+
+        # Delete the response after we're done with it
+        try:
+            self._delete_response(resp.id)
+        except Exception as e:
+            logger.warning(f"Error deleting response: {e}")
+
+        return resp
 
     @abc.abstractmethod
     def extract_json_from_response(self, input_response: str) -> list[list[int]] | None:

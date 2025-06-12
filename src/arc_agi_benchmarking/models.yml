@@ -5,6 +5,48 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "o3-pro-2025-06-10-high"
+    model_name: "o3-pro-2025-06-10"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+      # summary: "auto"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-06-10"
+      input: 20.00
+      output: 80.00
+
+  - name: "o3-pro-2025-06-10-medium"
+    model_name: "o3-pro-2025-06-10"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "medium"
+      # summary: "auto"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-06-10"
+      input: 20.00
+      output: 80.00
+
+  - name: "o3-pro-2025-06-10-low"
+    model_name: "o3-pro-2025-06-10"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "low"
+      # summary: "auto"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-06-10"
+      input: 20.00
+      output: 80.00
+
   - name: "codex-mini-latest"
     model_name: "codex-mini-latest"
     provider: "openai"
@@ -18,22 +60,43 @@ models:
   - name: "o3-2025-04-16-high"
     model_name: "o3-2025-04-16"
     provider: "openai"
-    reasoning_effort: "high"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+    background: true
     max_completion_tokens: 100000
     pricing:
       date: "2025-04-16"
-      input: 10.00
-      output: 40.00
+      input: 2.00
+      output: 8.00
 
   - name: "o3-2025-04-16-medium"
     model_name: "o3-2025-04-16"
     provider: "openai"
-    reasoning_effort: "medium"
+    api_type: "responses"
+    reasoning:
+      effort: "medium"
+      # summary: "auto"
+    background: true
     max_completion_tokens: 100000
     pricing:
       date: "2025-04-16"
-      input: 10.00
-      output: 40.00
+      input: 2.00
+      output: 8.00
+
+  - name: "o3-2025-04-16-low-2025-06-10"
+    model_name: "o3-2025-04-16"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "low"
+      # summary: "auto"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-04-16"
+      input: 2.00
+      output: 8.00
 
   - name: "o3-2025-04-16-low"
     model_name: "o3-2025-04-16"
@@ -42,13 +105,16 @@ models:
     max_completion_tokens: 100000
     pricing:
       date: "2025-04-16"
-      input: 10.00
-      output: 40.00
+      input: 2.00
+      output: 8.00
 
   - name: "o4-mini-2025-04-16-high"
     model_name: "o4-mini-2025-04-16"
     provider: "openai"
-    reasoning_effort: "high"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+    background: true
     max_completion_tokens: 100000
     pricing:
       date: "2025-04-16"
@@ -202,12 +268,42 @@ models:
       input: 15.00   # Standard input price; note: a cached input rate of 0.55 exists.
       output: 60.00
 
-  - name: "o1-pro-2025-03-19"
+  - name: "o1-pro-2025-03-19-high"
+    model_name: "o1-pro-2025-03-19"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "high"
+      # summary: "auto"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-03-19"
+      input: 150.00
+      output: 600.00
+
+  - name: "o1-pro-2025-03-19-medium"
     model_name: "o1-pro-2025-03-19"
     provider: "openai"
     api_type: "responses"
     reasoning:
       effort: "medium"
+      # summary: "auto"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-03-19"
+      input: 150.00
+      output: 600.00
+
+  - name: "o1-pro-2025-03-19-low"
+    model_name: "o1-pro-2025-03-19"
+    provider: "openai"
+    api_type: "responses"
+    reasoning:
+      effort: "low"
+      # summary: "auto"
+    background: true
     max_completion_tokens: 100000
     pricing:
       date: "2025-03-19"
