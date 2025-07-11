@@ -13,6 +13,7 @@ from arc_agi_benchmarking.adapters.openrouter import OpenRouterAdapter
 import arc_agi_benchmarking.adapters 
 
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing, Usage, CompletionTokensDetails, Cost, APIType
+from openai.types import CompletionUsage
 from arc_agi_benchmarking.errors import TokenMismatchError
 import os
 from dotenv import load_dotenv
@@ -332,16 +333,16 @@ class TestOpenAIBaseProviderLogic:
         adapter_instance.model_config.api_type = APIType.CHAT_COMPLETIONS
         adapter_instance.model_config.kwargs = {'stream': True}
         
-        # Mock the _chat_completion method to check if streaming is handled
-        with patch.object(adapter_instance, '_chat_completion') as mock_completion:
-            mock_completion.return_value = mock_response_case_a_no_reasoning
+        # Mock the _chat_completion_stream method to check if streaming is used
+        with patch.object(adapter_instance, '_chat_completion_stream') as mock_completion_stream:
+            mock_completion_stream.return_value = mock_response_case_a_no_reasoning
             
             prompt = "Test streaming prompt"
             
             result = adapter_instance._call_ai_model(prompt)
             
-            # Verify _chat_completion was called (which handles streaming internally)
-            mock_completion.assert_called_once()
+            # Verify _chat_completion_stream was called for streaming
+            mock_completion_stream.assert_called_once()
             # Verify the result is our expected response
             assert result == mock_response_case_a_no_reasoning
 
@@ -376,9 +377,17 @@ class TestOpenAIBaseProviderLogic:
             chunk = MagicMock()
             chunk.choices = [MagicMock()]
             chunk.choices[0].delta.content = f"chunk{i}"
+            chunk.choices[0].finish_reason = "stop" if i == 2 else None  # Only set finish_reason on last chunk
             chunk.id = "test-id"
             chunk.created = 12345
             chunk.model = "test-model"
+            # Mock usage data on the last chunk
+            if i == 2:
+                chunk.usage = CompletionUsage(
+                    prompt_tokens=10,
+                    completion_tokens=20,
+                    total_tokens=30
+                )
             mock_chunks.append(chunk)
         
         # Mock the client's chat.completions.create to return an iterable
@@ -403,10 +412,13 @@ class TestOpenAIBaseProviderLogic:
         # Verify result contains the concatenated content
         assert result.choices[0].message.content == "chunk0chunk1chunk2"
         
-        # Verify status messages were printed
-        print_calls = [call.args[0] for call in mock_print.call_args_list]
-        assert "Starting streaming response..." in print_calls
-        assert "\nStreaming complete. Total chunks: 3" in print_calls
+        # Verify the response has the expected structure
+        assert result.id == "test-id"
+        assert result.model == adapter_instance.model_config.model_name
+        assert result.choices[0].finish_reason == "stop"
+        assert result.usage.prompt_tokens == 10
+        assert result.usage.completion_tokens == 20
+        assert result.usage.total_tokens == 30
 
     def test_streaming_config_attribute_access(self, adapter_instance):
         """Test that streaming config is properly accessed from model config."""
@@ -424,3 +436,38 @@ class TestOpenAIBaseProviderLogic:
         adapter_instance.model_config.stream = False
         stream_enabled = getattr(adapter_instance.model_config, 'stream', False)
         assert stream_enabled is False
+    
+    def test_responses_streaming_enabled(self, adapter_instance):
+        """Test that responses streaming is properly handled."""
+        # Set up for responses API with streaming
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        adapter_instance.model_config.stream = True
+        adapter_instance.model_config.kwargs = {'stream': True}
+        
+        # Mock the _responses_stream method
+        with patch.object(adapter_instance, '_responses_stream') as mock_responses_stream:
+            mock_response = MagicMock()
+            mock_responses_stream.return_value = mock_response
+            
+            prompt = "Test responses streaming prompt"
+            
+            result = adapter_instance._call_ai_model(prompt)
+            
+            # Verify _responses_stream was called
+            mock_responses_stream.assert_called_once()
+            # Verify the result is our mock response
+            assert result == mock_response
+    
+    def test_responses_streaming_with_background_raises_error(self, adapter_instance):
+        """Test that enabling both streaming and background for responses API raises ValueError."""
+        # Set up for responses API with both streaming and background enabled
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        adapter_instance.model_config.stream = True
+        adapter_instance.model_config.background = True
+        adapter_instance.model_config.kwargs = {'stream': True, 'background': True}
+        
+        prompt = "Test prompt"
+        
+        # Should raise ValueError when both streaming and background are enabled
+        with pytest.raises(ValueError, match="Cannot enable both streaming and background for the responses API type"):
+            adapter_instance._call_ai_model(prompt)
