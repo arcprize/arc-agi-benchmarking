@@ -173,6 +173,7 @@ models:
     provider: "openai"
     api_type: "responses"
     max_completion_tokens: 8000
+    stream: true
     pricing:
       date: "2025-02-23"
       input: 2.50   # Standard input price; note: a cached input rate of 1.25 exists.

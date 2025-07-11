@@ -48,7 +48,7 @@ dependencies = [
     "google-auth==2.38.0",
     "google-genai==1.14.0",
     "googleapis-common-protos==1.68.0",
-    "openai==1.75.0",
+    "openai==1.95.1",
     "proto-plus==1.26.0",
     "protobuf==5.29.3",
     "pyasn1==0.6.1",
