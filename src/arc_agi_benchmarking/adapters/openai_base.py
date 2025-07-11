@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice as OpenAIChoice
 from openai.types import CompletionUsage
-from arc_agi_benchmarking.schemas import APIType, Cost, Attempt
+from arc_agi_benchmarking.schemas import APIType, Cost, Attempt, Usage, CompletionTokensDetails
 from typing import Optional, Any, List, Dict
 from time import sleep
 import logging
@@ -252,13 +252,29 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                     finish_reason = chunk.finish_reason
                 
                 # Extract usage data
-                if hasattr(chunk, 'usage') and chunk.usage:
-                    usage_data = chunk.usage
+                if hasattr(chunk, 'response') and chunk.response.usage:
+                    raw_usage = chunk.response.usage
                     # Normalize token field names
-                    prompt_tokens = getattr(usage_data, 'prompt_tokens', getattr(usage_data, 'input_tokens', 0))
-                    completion_tokens = getattr(usage_data, 'completion_tokens', getattr(usage_data, 'output_tokens', 0))
-                    if not hasattr(usage_data, 'total_tokens'):
-                        usage_data.total_tokens = prompt_tokens + completion_tokens
+                    prompt_tokens = getattr(raw_usage, 'prompt_tokens', getattr(raw_usage, 'input_tokens', 0))
+                    completion_tokens = getattr(raw_usage, 'completion_tokens', getattr(raw_usage, 'output_tokens', 0))
+                    total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
+                    
+                    # Extract reasoning tokens if available
+                    reasoning_tokens = 0
+                    if hasattr(raw_usage, 'completion_tokens_details') and raw_usage.completion_tokens_details:
+                        reasoning_tokens = getattr(raw_usage.completion_tokens_details, 'reasoning_tokens', 0)
+                    
+                    # Create proper Usage object from raw usage data
+                    usage_data = Usage(
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        total_tokens=total_tokens,
+                        completion_tokens_details=CompletionTokensDetails(
+                            reasoning_tokens=reasoning_tokens,
+                            accepted_prediction_tokens=completion_tokens - reasoning_tokens,
+                            rejected_prediction_tokens=0
+                        )
+                    )
             
             # Build final response
             final_content = ''.join(content_chunks)
@@ -266,13 +282,17 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             
             if not usage_data:
                 logger.warning("No usage data received from streaming response")
-                # Create minimal usage data structure
-                class MockUsage:
-                    def __init__(self):
-                        self.prompt_tokens = 0
-                        self.completion_tokens = 0
-                        self.total_tokens = 0
-                usage_data = MockUsage()
+                # Create proper Usage object with minimal data
+                usage_data = Usage(
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    total_tokens=0,
+                    completion_tokens_details=CompletionTokensDetails(
+                        reasoning_tokens=0,
+                        accepted_prediction_tokens=0,
+                        rejected_prediction_tokens=0
+                    )
+                )
             
             logger.debug(f"Streaming complete. Content length: {len(final_content)}")
             
