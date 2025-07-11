@@ -69,7 +69,29 @@ class ARCTester:
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
         logger.info(f"Making prediction for task {task_id}, test {test_id}, pair_index {pair_index}")
-        response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
+        logger.debug(f"Using model config: {self.model_config.name} ({self.model_config.provider})")
+        logger.debug(f"Prompt length: {len(prompt)} characters")
+        
+        try:
+            logger.debug("Waiting for model response...")
+            response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
+            
+            logger.debug(f"Response received - Cost: ${response.metadata.cost.total_cost:.6f}, Usage: {response.metadata.usage.total_tokens} tokens")
+            
+            # In verbose mode, show more detailed response info
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Response details - Model: {response.metadata.model}")
+                if hasattr(response.metadata.usage, 'completion_tokens_details') and response.metadata.usage.completion_tokens_details:
+                    reasoning_tokens = response.metadata.usage.completion_tokens_details.reasoning_tokens
+                    if reasoning_tokens > 0:
+                        logger.debug(f"Reasoning tokens used: {reasoning_tokens}")
+                
+        except Exception as e:
+            logger.error(f"Provider prediction failed for task {task_id}, test {test_id}, pair_index {pair_index}: {e}")
+            if logger.isEnabledFor(logging.DEBUG):
+                import traceback
+                logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+            raise
 
         return response
 
@@ -167,7 +189,13 @@ class ARCTester:
                             pair_submission_attempts[attempt_key] = attempt_obj.model_dump(mode='json')
                             break 
                     except Exception as e:
-                        logger.warning(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Attempt #{attempt_num}, Retry #{retry_num + 1} failed. Error: {e}")
+                        error_msg = f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Attempt #{attempt_num}, Retry #{retry_num + 1} failed. Error: {e}"
+                        logger.warning(error_msg)
+                        
+                        # In verbose mode, show full traceback for debugging
+                        if logger.isEnabledFor(logging.DEBUG):
+                            import traceback
+                            logger.debug(f"Full traceback for the above error:\n{traceback.format_exc()}")
 
                     if retry_num == self.retry_attempts - 1:
                         logger.warning(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, All {self.retry_attempts} retries failed for attempt #{attempt_num}")
@@ -218,16 +246,43 @@ def main_cli(cli_args: Optional[List[str]] = None):
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
         help="Set the logging level (default: INFO)"
     )
+    parser.add_argument(
+        "--verbose", 
+        action="store_true", 
+        help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)"
+    )
     args = parser.parse_args(cli_args)
 
     # Set metrics enabled status based on CLI arg first
     set_metrics_enabled(args.enable_metrics)
 
     # Configure logging
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    if args.verbose:
+        # Verbose mode: Show DEBUG for our code, WARNING+ for libraries
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
+        # Set library loggers to WARNING to reduce noise
+        library_loggers = [
+            'openai', 'httpx', 'httpcore', 'urllib3', 'requests', 
+            'anthropic', 'google', 'pydantic', 'transformers'
+        ]
+        for lib_logger in library_loggers:
+            logging.getLogger(lib_logger).setLevel(logging.WARNING)
+        
+        # Keep our application loggers at DEBUG
+        logging.getLogger('arc_agi_benchmarking').setLevel(logging.DEBUG)
+        logging.getLogger('__main__').setLevel(logging.DEBUG)
+        
+        logger.info("Verbose mode enabled - showing debug output for arc_agi_benchmarking only")
+    else:
+        # Normal mode: Use the specified log level
+        logging.basicConfig(
+            level=getattr(logging, args.log_level.upper()),
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
 
     arc_solver = ARCTester(
         config=args.config,

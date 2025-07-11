@@ -106,6 +106,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         
         # Prepare kwargs for streaming, removing 'stream' to avoid duplication
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
+        logger.debug(f"Stream config: include_usage=True, kwargs={stream_kwargs}")
         
         try:
             # Create the stream with usage tracking
@@ -214,6 +215,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         
         # Prepare kwargs for streaming, removing 'stream' to avoid duplication
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
+        logger.debug(f"Responses stream config: kwargs={stream_kwargs}")
         
         try:
             # Create the stream
