@@ -5,6 +5,7 @@ from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice as OpenAIChoice
 from openai.types import CompletionUsage
 from arc_agi_benchmarking.schemas import APIType, Cost, Attempt, Usage, CompletionTokensDetails
+from arc_agi_benchmarking.errors import TokenMismatchError
 from typing import Optional, Any, List, Dict
 from time import sleep
 import logging
@@ -15,62 +16,42 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-class StreamingResponseBuilder:
-    """Helper class to build structured responses from streaming data."""
-    
-    @staticmethod
-    def build_chat_completion_response(content: str, usage_data: CompletionUsage, 
-                                     response_id: str, model_name: str, 
-                                     finish_reason: str = "stop") -> ChatCompletion:
-        """Build a ChatCompletion response from streaming data."""
-        return ChatCompletion(
-            id=response_id,
-            choices=[
-                OpenAIChoice(
-                    finish_reason=finish_reason,
-                    index=0,
-                    message=ChatCompletionMessage(
-                        content=content,
-                        role='assistant'
-                    ),
-                    logprobs=None
-                )
-            ],
-            created=int(time.time()),
-            model=model_name,
-            object='chat.completion',
-            usage=usage_data
-        )
-    
-    @staticmethod
-    def build_responses_response(content: str, usage_data: Any, 
-                               response_id: str, model_name: str, 
-                               finish_reason: str = "stop") -> Any:
-        """Build a responses API response from streaming data."""
-        class MockContent:
-            def __init__(self, text):
-                self.text = text
-                self.type = "output_text"
-        
-        class MockOutput:
-            def __init__(self, text):
-                self.content = [MockContent(text)]
-                self.role = "assistant"
-                self.type = "message"
-        
-        class MockResponse:
-            def __init__(self, model_name, full_content, usage_data, response_id, finish_reason=None):
-                self.id = response_id or "stream-response"
-                self.model = model_name
-                self.object = "response"
-                self.output = [MockOutput(full_content)]
-                self.finish_reason = finish_reason
-                self.usage = usage_data
-        
-        return MockResponse(model_name, content, usage_data, response_id, finish_reason)
+# Helper classes for responses API mock structure
+class _ResponsesContent:
+    def __init__(self, text):
+        self.text = text
+        self.type = "output_text"
+
+class _ResponsesOutput:
+    def __init__(self, text):
+        self.content = [_ResponsesContent(text)]
+        self.role = "assistant"
+        self.type = "message"
+
+class _ResponsesResponse:
+    def __init__(self, model_name, content, usage_data, response_id, finish_reason="stop"):
+        self.id = response_id or "stream-response"
+        self.model = model_name
+        self.object = "response"
+        self.output = [_ResponsesOutput(content)]
+        self.finish_reason = finish_reason
+        self.usage = usage_data
 
 
 class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
+    
+    def _create_fallback_usage(self) -> Usage:
+        """Create a fallback Usage object when no usage data is available."""
+        return Usage(
+            prompt_tokens=0,
+            completion_tokens=0,
+            total_tokens=0,
+            completion_tokens_details=CompletionTokensDetails(
+                reasoning_tokens=0,
+                accepted_prediction_tokens=0,
+                rejected_prediction_tokens=0
+            )
+        )
 
 
     @abc.abstractmethod
@@ -169,12 +150,23 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             
             logger.debug(f"Streaming complete. Content length: {len(final_content)}")
             
-            return StreamingResponseBuilder.build_chat_completion_response(
-                content=final_content,
-                usage_data=usage_data,
-                response_id=response_id,
-                model_name=self.model_config.model_name,
-                finish_reason=finish_reason
+            return ChatCompletion(
+                id=response_id,
+                choices=[
+                    OpenAIChoice(
+                        finish_reason=finish_reason,
+                        index=0,
+                        message=ChatCompletionMessage(
+                            content=final_content,
+                            role='assistant'
+                        ),
+                        logprobs=None
+                    )
+                ],
+                created=int(time.time()),
+                model=self.model_config.model_name,
+                object='chat.completion',
+                usage=usage_data
             )
             
         except Exception as e:
@@ -282,25 +274,15 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             
             if not usage_data:
                 logger.warning("No usage data received from streaming response")
-                # Create proper Usage object with minimal data
-                usage_data = Usage(
-                    prompt_tokens=0,
-                    completion_tokens=0,
-                    total_tokens=0,
-                    completion_tokens_details=CompletionTokensDetails(
-                        reasoning_tokens=0,
-                        accepted_prediction_tokens=0,
-                        rejected_prediction_tokens=0
-                    )
-                )
+                usage_data = self._create_fallback_usage()
             
             logger.debug(f"Streaming complete. Content length: {len(final_content)}")
             
-            return StreamingResponseBuilder.build_responses_response(
+            return _ResponsesResponse(
+                model_name=self.model_config.model_name,
                 content=final_content,
                 usage_data=usage_data,
                 response_id=response_id,
-                model_name=self.model_config.model_name,
                 finish_reason=finish_reason
             )
             
@@ -405,7 +387,6 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
         # Final Sanity Check: Compare computed total against provider's total (if provider gave one)
         if tt_raw and computed_total != tt_raw:
-            from arc_agi_benchmarking.errors import TokenMismatchError # Local import
             raise TokenMismatchError(
                 f"Token count mismatch: API reports total {tt_raw}, "
                 f"but computed P:{prompt_tokens_for_cost} + C:{completion_tokens_for_cost} + R:{reasoning_tokens_for_cost} = {computed_total}"
@@ -424,7 +405,6 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         # Total cost is the sum of all components
         total_cost = prompt_cost + completion_cost + reasoning_cost
 
-        from arc_agi_benchmarking.schemas import Cost  # Local import (avoids circular issues in some environments)
         return Cost(
             prompt_cost=prompt_cost,
             completion_cost=completion_cost, # Cost of 'actual' completion
