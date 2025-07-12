@@ -106,7 +106,6 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         
         # Prepare kwargs for streaming, removing 'stream' to avoid duplication
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
-        logger.debug(f"Stream config: include_usage=True, kwargs={stream_kwargs}")
         
         try:
             # Create the stream with usage tracking
@@ -215,7 +214,6 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         
         # Prepare kwargs for streaming, removing 'stream' to avoid duplication
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
-        logger.debug(f"Responses stream config: kwargs={stream_kwargs}")
         
         try:
             # Create the stream
@@ -389,6 +387,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
         # Final Sanity Check: Compare computed total against provider's total (if provider gave one)
         if tt_raw and computed_total != tt_raw:
+            from arc_agi_benchmarking.errors import TokenMismatchError # Local import
             raise TokenMismatchError(
                 f"Token count mismatch: API reports total {tt_raw}, "
                 f"but computed P:{prompt_tokens_for_cost} + C:{completion_tokens_for_cost} + R:{reasoning_tokens_for_cost} = {computed_total}"

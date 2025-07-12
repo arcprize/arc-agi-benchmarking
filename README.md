@@ -102,6 +102,27 @@ While `cli/run_all.py` is recommended for batch runs, you can still test a singl
 ```bash
 python main.py --data_dir data/arc-agi/data/evaluation --config grok-4-0709 --task_id 0a1d4ef5 --log-level DEBUG --enable-metrics
 ```
+
+### Verbose Mode for Debugging
+
+For detailed debugging output, use the `--verbose` flag:
+
+```bash
+python main.py --data_dir data/arc-agi/data/evaluation --config grok-4-0709 --task_id 0a1d4ef5 --verbose
+```
+
+The `--verbose` flag provides:
+- **DEBUG level logs** for `arc_agi_benchmarking` code (shows detailed execution flow)
+- **Library noise reduction** - keeps external library loggers (OpenAI, Anthropic, httpx, etc.) at WARNING level
+- **Response waiting indicators** - shows when the system is waiting for API responses
+- **Full error tracebacks** - displays complete stack traces for debugging failures
+
+This is particularly useful when:
+- Debugging API connection issues
+- Understanding token usage and costs
+- Troubleshooting provider-specific problems
+- Analyzing streaming behavior
+
 Note: `main.py` also supports `--log-level` and `--enable-metrics` (metrics are disabled by default).
 
 ## Legacy Concurrency: Running with `GNU parallel` (Alternative)
