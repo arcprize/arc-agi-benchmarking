@@ -306,12 +306,6 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             if hasattr(raw_usage, 'output_tokens_details') and raw_usage.output_tokens_details:
                 reasoning_tokens = getattr(raw_usage.output_tokens_details, 'reasoning_tokens', 0)
                 
-        else:
-            # Fallback for unknown API types - try both field naming conventions
-            prompt_tokens = getattr(raw_usage, 'prompt_tokens', getattr(raw_usage, 'input_tokens', 0))
-            completion_tokens = getattr(raw_usage, 'completion_tokens', getattr(raw_usage, 'output_tokens', 0))
-            total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
-            reasoning_tokens = 0
         
         # If no explicit reasoning tokens but total > prompt + completion, infer reasoning
         if reasoning_tokens == 0 and total_tokens > (prompt_tokens + completion_tokens):
@@ -350,10 +344,12 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             return response.choices[0].message.content
         elif api_type == APIType.RESPONSES:
             # The structure for responses is response.output[0].content[0].text
-            return response.output[0].content[0].text
-        else:
-            # Fallback for other potential types, though not expected
-            return response.choices[0].text
+            content = getattr(response, 'output_text', "")
+            if content:
+                return content
+            else:
+                return response.output[0].content[0].text
+
 
     def _get_role(self, response: Any) -> str:
         """Extract role from a standard OpenAI-like response object."""
