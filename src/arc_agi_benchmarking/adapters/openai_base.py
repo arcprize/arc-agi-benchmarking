@@ -298,11 +298,62 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         pass
         
-    def _get_usage(self, response: Any) -> Any:
+    def _get_usage(self, response: Any) -> Usage:
         """
-        Get the usage from the response
+        Get the usage from the response and convert to our Usage schema.
+        Handles OpenAI ChatCompletion, Responses API, and already-converted Usage objects.
         """
-        return response.usage
+        raw_usage = response.usage
+        
+        # If it's already our custom Usage object, return it directly
+        if isinstance(raw_usage, Usage):
+            return raw_usage
+        
+        # Handle different API response types
+        if self.model_config.api_type == APIType.CHAT_COMPLETIONS:
+            # OpenAI Chat Completions API - uses CompletionUsage with prompt_tokens/completion_tokens
+            prompt_tokens = getattr(raw_usage, 'prompt_tokens', 0)
+            completion_tokens = getattr(raw_usage, 'completion_tokens', 0)
+            total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
+            
+            # Extract reasoning tokens if available (for reasoning models like o1)
+            reasoning_tokens = 0
+            if hasattr(raw_usage, 'completion_tokens_details') and raw_usage.completion_tokens_details:
+                reasoning_tokens = getattr(raw_usage.completion_tokens_details, 'reasoning_tokens', 0)
+                
+        elif self.model_config.api_type == APIType.RESPONSES:
+            # OpenAI Responses API - uses input_tokens/output_tokens
+            prompt_tokens = getattr(raw_usage, 'input_tokens', 0)
+            completion_tokens = getattr(raw_usage, 'output_tokens', 0)
+            total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
+            
+            # Extract reasoning tokens for responses API
+            reasoning_tokens = 0
+            if hasattr(raw_usage, 'output_tokens_details') and raw_usage.output_tokens_details:
+                reasoning_tokens = getattr(raw_usage.output_tokens_details, 'reasoning_tokens', 0)
+                
+        else:
+            # Fallback for unknown API types - try both field naming conventions
+            prompt_tokens = getattr(raw_usage, 'prompt_tokens', getattr(raw_usage, 'input_tokens', 0))
+            completion_tokens = getattr(raw_usage, 'completion_tokens', getattr(raw_usage, 'output_tokens', 0))
+            total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
+            reasoning_tokens = 0
+        
+        # If no explicit reasoning tokens but total > prompt + completion, infer reasoning
+        if reasoning_tokens == 0 and total_tokens > (prompt_tokens + completion_tokens):
+            reasoning_tokens = total_tokens - (prompt_tokens + completion_tokens)
+        
+        # Create our standardized Usage object
+        return Usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            completion_tokens_details=CompletionTokensDetails(
+                reasoning_tokens=reasoning_tokens,
+                accepted_prediction_tokens=max(0, completion_tokens - reasoning_tokens),
+                rejected_prediction_tokens=0
+            )
+        )
 
     def _get_reasoning_summary(self, response: Any) -> Optional[List[Dict[str, Any]]]:
         """
@@ -359,7 +410,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         pt_raw = usage.prompt_tokens
         ct_raw = usage.completion_tokens
         tt_raw = usage.total_tokens or 0
-        rt_explicit = 0 # Not available from OpenAI
+        rt_explicit = usage.completion_tokens_details.reasoning_tokens if usage.completion_tokens_details else 0
 
         # For OpenAI, we assume the raw tokens are correct and can be used directly for billing.
         # Determine effective token counts for cost calculation based on the two cases
