@@ -341,14 +341,13 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         api_type = self.model_config.api_type
         if api_type == APIType.CHAT_COMPLETIONS:
-            return response.choices[0].message.content
-        elif api_type == APIType.RESPONSES:
-            # The structure for responses is response.output[0].content[0].text
-            content = getattr(response, 'output_text', "")
-            if content:
-                return content
-            else:
-                return response.output[0].content[0].text
+            content = response.choices[0].message.content or ""
+        else:  # APIType.RESPONSES
+            content = getattr(response, "output_text", "")
+            if not content and getattr(response, "output", None):
+                # Fallback to first text block
+                content = response.output[0].content[0].text or ""
+        return content.strip()
 
 
     def _get_role(self, response: Any) -> str:
