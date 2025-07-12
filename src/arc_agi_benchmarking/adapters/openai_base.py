@@ -40,19 +40,6 @@ class _ResponsesResponse:
 
 class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
     
-    def _create_fallback_usage(self) -> Usage:
-        """Create a fallback Usage object when no usage data is available."""
-        return Usage(
-            prompt_tokens=0,
-            completion_tokens=0,
-            total_tokens=0,
-            completion_tokens_details=CompletionTokensDetails(
-                reasoning_tokens=0,
-                accepted_prediction_tokens=0,
-                rejected_prediction_tokens=0
-            )
-        )
-
 
     @abc.abstractmethod
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
@@ -244,37 +231,12 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                     finish_reason = chunk.finish_reason
                 
                 # Extract usage data
-                if hasattr(chunk, 'response') and chunk.response.usage:
-                    raw_usage = chunk.response.usage
-                    # Normalize token field names
-                    prompt_tokens = getattr(raw_usage, 'prompt_tokens', getattr(raw_usage, 'input_tokens', 0))
-                    completion_tokens = getattr(raw_usage, 'completion_tokens', getattr(raw_usage, 'output_tokens', 0))
-                    total_tokens = getattr(raw_usage, 'total_tokens', prompt_tokens + completion_tokens)
-                    
-                    # Extract reasoning tokens if available
-                    reasoning_tokens = 0
-                    if hasattr(raw_usage, 'completion_tokens_details') and raw_usage.completion_tokens_details:
-                        reasoning_tokens = getattr(raw_usage.completion_tokens_details, 'reasoning_tokens', 0)
-                    
-                    # Create proper Usage object from raw usage data
-                    usage_data = Usage(
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        total_tokens=total_tokens,
-                        completion_tokens_details=CompletionTokensDetails(
-                            reasoning_tokens=reasoning_tokens,
-                            accepted_prediction_tokens=completion_tokens - reasoning_tokens,
-                            rejected_prediction_tokens=0
-                        )
-                    )
+                if hasattr(chunk, 'response') and chunk.response:
+                    usage_data = self._get_usage(chunk.response)
             
             # Build final response
             final_content = ''.join(content_chunks)
             response_id = response_id or f"stream-{int(time.time())}"
-            
-            if not usage_data:
-                logger.warning("No usage data received from streaming response")
-                usage_data = self._create_fallback_usage()
             
             logger.debug(f"Streaming complete. Content length: {len(final_content)}")
             
@@ -303,6 +265,18 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         Get the usage from the response and convert to our Usage schema.
         Handles OpenAI ChatCompletion, Responses API, and already-converted Usage objects.
         """
+        if not hasattr(response, 'usage') or not response.usage:
+            return Usage(
+                prompt_tokens=0,
+                completion_tokens=0, 
+                total_tokens=0,
+                completion_tokens_details=CompletionTokensDetails(
+                    reasoning_tokens=0,
+                    accepted_prediction_tokens=0,
+                    rejected_prediction_tokens=0
+                )
+            )
+            
         raw_usage = response.usage
         
         # If it's already our custom Usage object, return it directly
