@@ -318,7 +318,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             total_tokens=total_tokens,
             completion_tokens_details=CompletionTokensDetails(
                 reasoning_tokens=reasoning_tokens,
-                accepted_prediction_tokens=max(0, completion_tokens - reasoning_tokens),
+                accepted_prediction_tokens=completion_tokens,
                 rejected_prediction_tokens=0
             )
         )
