@@ -24,7 +24,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "high"
-      summary: "auto"
+      summary: "detailed"
     stream: true
     max_completion_tokens: 200000
     pricing:
@@ -38,7 +38,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "medium"
-      summary: "auto"
+      summary: "detailed"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
@@ -51,7 +51,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "low"
-      summary: "auto"
+      summary: "detailed"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
@@ -64,7 +64,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "minimal"
-      summary: "auto"
+      summary: "detailed"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
@@ -77,7 +77,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "high"
-      summary: "auto"
+      summary: "detailed"
     stream: true
     max_completion_tokens: 100000
     pricing:
@@ -91,7 +91,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "medium"
-      summary: "auto"
+      summary: "detailed"
     stream: true
     max_completion_tokens: 100000
     pricing:
@@ -105,7 +105,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "low"
-      summary: "auto"
+      summary: "detailed"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
@@ -118,7 +118,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "minimal"
-      summary: "auto"
+      summary: "detailed"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
@@ -131,7 +131,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "high"
-      summary: "auto"
+      summary: "detailed"
     stream: true
     max_completion_tokens: 100000
     pricing:
@@ -145,7 +145,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "medium"
-      summary: "auto"
+      summary: "detailed"
     stream: true
     max_completion_tokens: 100000
     pricing:
@@ -159,7 +159,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "low"
-      summary: "auto"
+      summary: "detailed"
     stream: true
     max_completion_tokens: 100000
     pricing:
@@ -173,7 +173,7 @@ models:
     api_type: "responses"
     reasoning:
       effort: "minimal"
-      summary: "auto"
+      summary: "detailed"
     max_completion_tokens: 100000
     pricing:
       date: "2025-08-07"
