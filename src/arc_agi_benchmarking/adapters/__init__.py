@@ -5,7 +5,6 @@ from .open_ai import OpenAIAdapter
 # from .openai_base import OpenAIBaseAdapter
 from .deepseek import DeepseekAdapter
 from .gemini import GeminiAdapter
-from .curl_gemini import CurlGeminiAdapter
 from .hugging_face_fireworks import HuggingFaceFireworksAdapter
 from .fireworks import FireworksAdapter
 from .grok import GrokAdapter
