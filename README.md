@@ -9,10 +9,17 @@ This repo contains code for testing model baselines on ARC-AGI. The input data i
 
 `git submodule update --init`
 
-`pip install -r requirements.txt`
+Install from the `pyproject.toml` (flit backend):
 
-To enable provider-specific API error handling for retries (e.g., for OpenAI, Anthropic, Google), ensure their respective SDKs are installed. For example:
-`pip install openai anthropic google-api-python-client`
+```bash
+# Regular install (installs all adapters and their SDKs)
+pip install .
+
+# Editable/dev install
+pip install -e .
+```
+
+We currently use an "install everything" strategy so imports work out of the box; this includes provider SDKs such as OpenAI, Anthropic, Google (gemini), Hugging Face Fireworks, etc. No `requirements.txt` is maintained.
 
 ## ARC-AGI-1 vs ARC-AGI-2
 
