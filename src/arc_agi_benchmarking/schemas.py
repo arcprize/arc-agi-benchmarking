@@ -292,5 +292,6 @@ class ScoringResult(BaseModel):
     total_cost: float   # Total cost of all attempts
     attempts: int # Total number of attempts made
     output_tokens: int # Total number of output tokens used
+    total_tokens: int # Total number of tokens (prompt + output) used
     duration: float # Total duration of all attempts in seconds
     num_attempts_with_empty_list: int # Number of attempts that returned an empty list

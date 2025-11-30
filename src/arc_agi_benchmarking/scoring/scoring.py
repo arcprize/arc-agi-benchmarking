@@ -16,7 +16,8 @@ class ARCScorer:
         self.results_dir = Path(results_dir) if results_dir else None
         self.total_cost = 0.0
         self.total_attempts = 0
-        self.total_tokens = 0
+        self.total_output_tokens = 0
+        self.total_all_tokens = 0
         self.total_duration = 0.0
         self.num_attempts_with_empty_list = 0
 
@@ -44,7 +45,8 @@ class ARCScorer:
         task_cost = 0.0
         num_attempts = 0
         num_attempts_with_empty_list = 0
-        total_tokens = 0
+        output_tokens = 0
+        all_tokens = 0
         total_duration = 0.0
 
         for enum_pair_index, pair_attempts in enumerate(testing_results):
@@ -96,7 +98,8 @@ class ARCScorer:
                     raise TypeError(f"Attempt {attempt_data} is not an Attempt object")
                     
                 task_cost += attempt_data.metadata.cost.total_cost
-                total_tokens += attempt_data.metadata.usage.completion_tokens
+                output_tokens += attempt_data.metadata.usage.completion_tokens
+                all_tokens += attempt_data.metadata.usage.total_tokens
                 total_duration += (attempt_data.metadata.end_timestamp - attempt_data.metadata.start_timestamp).total_seconds()
             
                 if attempt_data is None:
@@ -117,7 +120,8 @@ class ARCScorer:
             score=task_score / num_pairs if num_pairs > 0 else 0.0,
             total_cost=task_cost,
             attempts=num_attempts,
-            output_tokens=total_tokens,
+            output_tokens=output_tokens,
+            total_tokens=all_tokens,
             duration=total_duration,
             num_attempts_with_empty_list=num_attempts_with_empty_list
         )
@@ -159,25 +163,28 @@ class ARCScorer:
             total_tasks += 1
             self.total_cost += scoring_result.total_cost
             self.total_attempts += scoring_result.attempts
-            self.total_tokens += scoring_result.output_tokens
+            self.total_output_tokens += scoring_result.output_tokens
+            self.total_all_tokens += scoring_result.total_tokens
             self.total_duration += scoring_result.duration
             self.num_attempts_with_empty_list += scoring_result.num_attempts_with_empty_list
-            
+
             task_results[task_id] = {
                 "score": scoring_result.score,
                 "cost": scoring_result.total_cost,
                 "attempts": scoring_result.attempts,
                 "output_tokens": scoring_result.output_tokens,
+                "total_tokens": scoring_result.total_tokens,
                 "duration": scoring_result.duration,
                 "num_attempts_with_empty_list": scoring_result.num_attempts_with_empty_list
             }
 
-            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.total_cost:.4f}, attempts: {scoring_result.attempts}, output_tokens: {scoring_result.output_tokens}, duration: {scoring_result.duration}")
+            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.total_cost:.4f}, attempts: {scoring_result.attempts}, output_tokens: {scoring_result.output_tokens}, total_tokens: {scoring_result.total_tokens}, duration: {scoring_result.duration}")
 
         # Calculate average costs
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
         avg_cost_per_attempt = self.total_cost / self.total_attempts if self.total_attempts > 0 else 0
-        avg_output_tokens_per_task = self.total_tokens / total_tasks if total_tasks > 0 else 0
+        avg_output_tokens_per_task = self.total_output_tokens / total_tasks if total_tasks > 0 else 0
+        avg_total_tokens_per_task = self.total_all_tokens / total_tasks if total_tasks > 0 else 0
         avg_duration_per_task = self.total_duration / total_tasks if total_tasks > 0 else 0
         percentage_attempts_with_empty_list = self.num_attempts_with_empty_list / self.total_attempts if self.total_attempts > 0 else 0
 
@@ -195,6 +202,7 @@ class ARCScorer:
                     "avg_cost_per_task": avg_cost_per_task,
                     "avg_cost_per_attempt": avg_cost_per_attempt,
                     "avg_output_tokens_per_task": avg_output_tokens_per_task,
+                    "avg_total_tokens_per_task": avg_total_tokens_per_task,
                     "avg_duration_per_task": avg_duration_per_task,
                     "task_results": task_results,
                     "num_attempts_with_empty_list": self.num_attempts_with_empty_list
@@ -207,6 +215,7 @@ class ARCScorer:
         print(f"Average Cost per Task: ${avg_cost_per_task:.4f}")
         print(f"Average Cost per Attempt: ${avg_cost_per_attempt:.4f}")
         print(f"Average Output Tokens per Task: {avg_output_tokens_per_task}")
+        print(f"Average Total Tokens per Task: {avg_total_tokens_per_task}")
         print(f"Average Duration per Task: {avg_duration_per_task}")
         print(f"Percentage Attempts with Empty List: {percentage_attempts_with_empty_list*100:.2f}%")
         print(f"Total Attempts: {self.total_attempts}")

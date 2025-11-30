@@ -5,6 +5,62 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "gpt-5-1-2025-11-13-thinking-high"
+    model_name: "gpt-5.1-2025-11-13"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "high"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-11-13"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-1-2025-11-13-thinking-medium"
+    model_name: "gpt-5.1-2025-11-13"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-11-13"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-1-2025-11-13-thinking-low"
+    model_name: "gpt-5.1-2025-11-13"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "low"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-11-13"
+      input: 1.25
+      output: 10.00
+
+  - name: "gpt-5-1-2025-11-13-thinking-none"
+    model_name: "gpt-5.1-2025-11-13"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "none"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-11-13"
+      input: 1.25
+      output: 10.00
+
   - name: "gpt-5-pro-2025-10-06"
     model_name: "gpt-5-pro-2025-10-06"
     provider: "openai"
@@ -600,6 +656,81 @@ models:
 #### Anthropic ####
 ###################
 
+  - name: "claude-opus-4-5-20251101-thinking-64k"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "anthropic"
+    max_tokens: 64000
+    stream: true
+    thinking:
+      type: "enabled"
+      budget_tokens: 63999
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-opus-4-5-20251101-thinking-32k"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "anthropic"
+    max_tokens: 64000
+    stream: true
+    thinking:
+      type: "enabled"
+      budget_tokens: 32000
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-opus-4-5-20251101-thinking-16k"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "anthropic"
+    max_tokens: 64000
+    stream: true
+    thinking:
+      type: "enabled"
+      budget_tokens: 16000
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-opus-4-5-20251101-thinking-8k"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "anthropic"
+    max_tokens: 64000
+    stream: true
+    thinking:
+      type: "enabled"
+      budget_tokens: 8000
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-opus-4-5-20251101-thinking-1k"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "anthropic"
+    max_tokens: 64000
+    thinking:
+      type: "enabled"
+      budget_tokens: 1024
+    stream: true
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-opus-4-5-20251101-thinking-none"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "anthropic"
+    max_tokens: 64000
+    stream: true
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
   - name: "claude-haiku-4-5-20251001-thinking-32k"
     model_name: "claude-haiku-4-5-20251001"
     provider: "anthropic"
@@ -610,8 +741,8 @@ models:
       budget_tokens: 32000
     pricing:
       date: "2025-10-15"
-      input: 1.00   # Single input price per 1M tokens.
-      output: 5.00 # Single output price per 1M tokens.
+      input: 1.00
+      output: 5.00
 
   - name: "claude-haiku-4-5-20251001-thinking-16k"
     model_name: "claude-haiku-4-5-20251001"
@@ -818,6 +949,25 @@ models:
 #### Gemini ####
 ################
 
+  - name: "gemini-3-deep-think-preview"
+    model_name: "gemini-3-deep-think-preview"
+    provider: "curlgemini"
+    max_output_tokens: 64000
+    tools:
+      - code_execution: {}
+    pricing:
+      date: "2025-11-18"
+      input: 0.00
+      output: 0.00
+
+  - name: "gemini-3-pro-preview"
+    model_name: "google/gemini-3-pro-preview"
+    provider: "openrouter"
+    max_tokens: 64000
+    pricing:
+      date: "2025-11-13"
+      input: 2.00
+      output: 12.00
 
   - name: "gemini-2-5-flash-preview-05-20"
     model_name: "gemini-2.5-flash-preview-05-20"

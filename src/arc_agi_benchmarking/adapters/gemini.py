@@ -12,6 +12,12 @@ import logging
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+class _StreamResponse:
+    """Wrapper for streaming response to hold accumulated text and metadata."""
+    def __init__(self, text: str, usage_metadata):
+        self.text = text
+        self.usage_metadata = usage_metadata
+
 class GeminiAdapter(ProviderAdapter):
     def init_client(self):
         """Initialize the Gemini client."""
@@ -27,7 +33,7 @@ class GeminiAdapter(ProviderAdapter):
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
         Make a prediction with the Gemini model and return an Attempt object.
-        
+
         Args:
             prompt: The prompt to send to the model.
             task_id: Optional task ID.
@@ -35,9 +41,16 @@ class GeminiAdapter(ProviderAdapter):
             pair_index: Optional index for paired data.
         """
         start_time = datetime.now(timezone.utc)
-        
-        messages = [{"role": "user", "content": prompt}] 
-        response = self.chat_completion(messages)
+
+        messages = [{"role": "user", "content": prompt}]
+
+        # Check if streaming is enabled
+        stream_enabled = self.model_config.kwargs.get('stream', False) or getattr(self.model_config, 'stream', False)
+
+        if stream_enabled:
+            response = self.chat_completion_stream(messages)
+        else:
+            response = self.chat_completion(messages)
         
         if response is None:
             logger.error(f"Failed to get response from chat_completion for task {task_id}")
@@ -129,7 +142,7 @@ class GeminiAdapter(ProviderAdapter):
             content = msg.get("content", "")
             if role == "assistant":
                 role = "model"  # Gemini uses 'model' for assistant responses
-            
+
             if role in ["user", "model"]:
                 contents_list.append(types.Content(role=role, parts=[types.Part(text=content)]))
             elif role == "system" and content:
@@ -158,6 +171,78 @@ class GeminiAdapter(ProviderAdapter):
             return response
         except Exception as e:
             logger.error(f"Error in chat_completion with google.genai: {e}")
+            if hasattr(e, 'response') and e.response:
+                 logger.error(f"API Error details: {e.response}")
+            return None
+
+    def chat_completion_stream(self, messages: list):
+        """
+        Make a streaming API call to Gemini and return the final complete response.
+        Only the final message is returned after streaming all chunks.
+        """
+        logger.debug(f"Starting streaming for Gemini model: {self.model_config.model_name}")
+
+        contents_list = []
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "assistant":
+                role = "model"  # Gemini uses 'model' for assistant responses
+
+            if role in ["user", "model"]:
+                contents_list.append(types.Content(role=role, parts=[types.Part(text=content)]))
+            elif role == "system" and content:
+                if 'system_instruction' not in self.generation_config_dict:
+                     logger.info(
+                         f"System message found in chat history: '{content}'. "
+                         "This will not be used unless 'system_instruction' is set in model_config.kwargs "
+                         "or this adapter is modified to handle it directly in 'contents'."
+                     )
+                pass
+
+        # Prepare config for streaming, removing 'stream' to avoid duplication
+        config_params = {k: v for k, v in self.generation_config_dict.items() if k != 'stream'}
+
+        try:
+            # Stream the content - we only care about the final result
+            stream = self.client.models.generate_content_stream(
+                model=self.model_config.model_name,
+                contents=contents_list,
+                config=types.GenerateContentConfig(**config_params)
+            )
+
+            # Iterate through all chunks to get to the final response
+            # This prevents connection hangs while we don't care about intermediate results
+            # We need to accumulate text chunks since streaming responses may not have .text on individual chunks
+            text_chunks = []
+            final_chunk = None
+            chunk_count = 0
+            for chunk in stream:
+                final_chunk = chunk
+                chunk_count += 1
+
+                # Accumulate text from each chunk
+                chunk_text = getattr(chunk, 'text', '')
+                if chunk_text:
+                    text_chunks.append(chunk_text)
+
+                # Log progress every 100 chunks to show it's working
+                if chunk_count % 1 == 0:
+                    logger.debug(f"Streaming progress: {chunk_count} chunks received")
+
+            # Combine all text chunks into final text
+            final_text = ''.join(text_chunks)
+
+            # Get usage metadata from the final chunk
+            usage_metadata = getattr(final_chunk, 'usage_metadata', None) if final_chunk else None
+
+            logger.debug(f"Streaming complete for Gemini model: {self.model_config.model_name}. Total chunks: {chunk_count}")
+
+            # Return a wrapper object with the accumulated text and metadata
+            return _StreamResponse(text=final_text, usage_metadata=usage_metadata)
+
+        except Exception as e:
+            logger.error(f"Error in chat_completion_stream with google.genai: {e}")
             if hasattr(e, 'response') and e.response:
                  logger.error(f"API Error details: {e.response}")
             return None
