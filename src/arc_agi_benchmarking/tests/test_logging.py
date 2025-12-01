@@ -153,14 +153,12 @@ async def test_orchestrator_log_levels(
     file_lines = ["task1\n", "task2\n"]
     mock_file_handle.__enter__.return_value.__iter__.return_value = iter(file_lines)
     mock_open.return_value = mock_file_handle
-    model_configs_list = ['mock_config']
-
     # Call the main async function
     await main(
         task_list_file="dummy.txt",
-        model_configs_to_test=model_configs_list,
+        config_to_test="mock_config",
         data_dir="dummy_data",
-        submissions_root="dummy_submissions",
+        save_submission_dir="dummy_submissions",
         overwrite_submission=False,
         print_submission=False,
         num_attempts=1,
@@ -213,13 +211,11 @@ async def test_orchestrator_log_level_none(mock_exit, mock_open, mock_get_model_
     # Also set root logger high in case of propagation or library logging
     logging.getLogger().setLevel(logging.CRITICAL + 1)
     
-    model_configs_list = ['mock_config']
-
     await main(
         task_list_file="dummy.txt",
-        model_configs_to_test=model_configs_list,
+        config_to_test="mock_config",
         data_dir="dummy_data",
-        submissions_root="dummy_submissions",
+        save_submission_dir="dummy_submissions",
         overwrite_submission=False,
         print_submission=False,
         num_attempts=1,

@@ -27,10 +27,9 @@ python main.py \
 3) Run all bundled sample tasks with the random solver:
 ```bash
 python cli/run_all.py \
-  --task_list_file data/sample/task_lists/sample_tasks.txt \
+  --config random-baseline \
   --data_dir data/sample/tasks \
-  --model_configs "random-baseline" \
-  --submissions-root submissions/random-baseline-sample \
+  --save_submission_dir submissions/random-baseline-sample \
   --log-level INFO
 ```
 
@@ -44,7 +43,7 @@ python src/arc_agi_benchmarking/scoring/scoring.py \
 
 If using the random solver, expect all the attempts to be incorrect.
 
-If you want to run real models, change the `model_configs` and add the corresponding API keys (see Data and Config sections below).
+If you want to run real models, change the `config` and add the corresponding API keys (see Data and Config sections below).
 
 ## Data
 
@@ -55,8 +54,8 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 
 ## CLI parameters
 - `--data_dir`: Folder containing ARC task `.json` files (e.g., `data/sample/tasks`).
-- `--config` / `--model_configs`: Model config name(s) from `models.yml`. Single-task uses `--config`; batch uses `--model_configs` (comma-separated).
-- `--save_submission_dir` / `--submissions-root`: Where to write outputs. Single-task writes directly to `--save_submission_dir`; batch uses `--submissions-root` and creates one folder per config.
+- `--config`: Model config name from `models.yml`. Used by both single-task and batch.
+- `--save_submission_dir`: Where to write outputs. Use the same flag for single-task and batch (alias: `--submissions-root` remains for backward compatibility). Recommended structure: `<save_submission_dir>/<config>/<version>/<eval_type>/`, ex: `submissions/gpt-4o-2024-11-20/v1/public_eval/`.
 - `--num_attempts`: How many attempts per test pair (per task).
 - `--retry_attempts`: Internal retries within an attempt if the provider call fails.
 - `--log-level`: `DEBUG|INFO|WARNING|ERROR|CRITICAL|NONE`.
@@ -67,7 +66,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 
 ## Running models
 For runs beyond the Quickstart:
-- Batch (recommended): `python cli/run_all.py` with your task list, model configs, data dir, submissions root, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `<submissions-root>/<config_name>`.
+- Batch (recommended): `python cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; run multiple configs by invoking it multiple times (see `run_all_configs_local.sh` for a pattern).
 - Single task (debug): `python main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.
 See the CLI parameters section for flag details.
 
@@ -94,7 +93,6 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
 ### Testing a new model
 
 1. Add a new model config: add an entry to `models.yml` with an existing provider; then use `--config <name>` on the CLI
-
 
 2. If you're adding a new adapter:
     1. Create `src/arc_agi_benchmarking/adapters/<provider>.py` implementing `ProviderAdapter`

@@ -78,7 +78,7 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
                 task_id, 
                 limiter,
                 data_dir=TEST_DATA_DIR, # DEFAULT_DATA_DIR
-                submissions_root="submissions_test_retries", # Changed from save_submission_dir_base
+                save_submission_dir="submissions_test_retries",
                 overwrite_submission=True, # DEFAULT_OVERWRITE_SUBMISSION is False, but True for test clarity
                 print_submission=False, # DEFAULT_PRINT_SUBMISSION
                 num_attempts=1, # DEFAULT_NUM_ATTEMPTS is 2, using 1 for faster test
@@ -152,7 +152,7 @@ async def test_failure_after_all_retries(caplog):
                 task_id, 
                 limiter,
                 data_dir=TEST_DATA_DIR,
-                submissions_root="submissions_test_retries",
+                save_submission_dir="submissions_test_retries",
                 overwrite_submission=True,
                 print_submission=False,
                 num_attempts=1,
@@ -202,7 +202,7 @@ async def test_non_retryable_exception(caplog):
                 task_id, 
                 limiter,
                 data_dir=TEST_DATA_DIR,
-                submissions_root="submissions_test_retries",
+                save_submission_dir="submissions_test_retries",
                 overwrite_submission=True,
                 print_submission=False,
                 num_attempts=1,

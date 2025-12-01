@@ -64,14 +64,12 @@ DEFAULT_RATE_LIMIT_RATE = 400
 DEFAULT_RATE_LIMIT_PERIOD = 60
 
 # --- Configuration ---
-# Default model configurations to test if not provided via CLI.
-# These are names from your models.yml file.
-DEFAULT_MODEL_CONFIGS_TO_TEST: List[str] = [
-    "gpt-4o-2024-11-20",
-]
+# Default model configuration to test if not provided via CLI.
+# This is a name from your models.yml file.
+DEFAULT_MODEL_CONFIG = "gpt-4o-2024-11-20"
 
 DEFAULT_DATA_DIR = "data/sample/tasks"
-DEFAULT_SUBMISSIONS_ROOT = "submissions" # Changed from DEFAULT_SAVE_SUBMISSION_DIR_BASE
+DEFAULT_SAVE_SUBMISSION_DIR = "submissions"
 DEFAULT_OVERWRITE_SUBMISSION = False
 DEFAULT_PRINT_SUBMISSION = False # ARCTester specific: whether it logs submission content
 DEFAULT_NUM_ATTEMPTS = 2
@@ -112,7 +110,7 @@ def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) ->
     return PROVIDER_RATE_LIMITERS[provider_name]
 
 async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter,
-                                  data_dir: str, submissions_root: str, # Changed from save_submission_dir_base
+                                  data_dir: str, save_submission_dir: str,
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int) -> bool: # removed print_logs
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
@@ -129,7 +127,7 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         logger.debug(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
         arc_solver = ARCTester(
             config=config_name,
-            save_submission_dir=submissions_root,
+            save_submission_dir=save_submission_dir,
             overwrite_submission=overwrite_submission,
             print_submission=print_submission, # This ARCTester arg controls if it logs submission content
             num_attempts=num_attempts,
@@ -154,16 +152,16 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         logger.error(f"[Orchestrator] Failed to process (after all tenacity retries or due to non-retryable error): {config_name} / {task_id}. Error: {type(e).__name__} - {e}", exc_info=True)
         return False
 
-async def main(task_list_file: Optional[str], # Added Optional
-               model_configs_to_test: List[str],
-               data_dir: str, submissions_root: str,
+async def main(task_list_file: Optional[str],
+               config_to_test: str,
+               data_dir: str, save_submission_dir: str,
                overwrite_submission: bool, print_submission: bool,
                num_attempts: int, retry_attempts: int) -> int: # Added return type hint
     # Basic logging setup is now done in if __name__ == "__main__"
     
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
-    logger.info(f"Testing with model configurations: {model_configs_to_test}")
+    logger.info(f"Testing with model configuration: {config_to_test}")
 
     task_ids: List[str] = []
     try:
@@ -198,12 +196,11 @@ async def main(task_list_file: Optional[str], # Added Optional
         return 1 # Return an error code
 
     all_jobs_to_run: List[Tuple[str, str]] = []
-    for config_name in model_configs_to_test:
-        for task_id in task_ids:
-            all_jobs_to_run.append((config_name, task_id))
+    for task_id in task_ids:
+        all_jobs_to_run.append((config_to_test, task_id))
     
     if not all_jobs_to_run:
-        logger.warning("No jobs to run (check model_configs_to_test and task list). Exiting.")
+        logger.warning("No jobs to run (check config_to_test and task list). Exiting.")
         return 1 # Return an error code
     
     logger.info(f"Total jobs to process: {len(all_jobs_to_run)}")
@@ -226,7 +223,7 @@ async def main(task_list_file: Optional[str], # Added Optional
             limiter = get_or_create_rate_limiter(provider_name, all_provider_limits)
             async_tasks_to_execute.append(run_single_test_wrapper(
                 config_name, task_id, limiter,
-                data_dir, submissions_root,
+                data_dir, save_submission_dir,
                 overwrite_submission, print_submission, 
                 num_attempts, retry_attempts
             ))
@@ -279,10 +276,10 @@ if __name__ == "__main__":
         help="Optional path to a .txt file containing task IDs, one per line. If not provided, tasks are inferred from all .json files in --data_dir."
     )
     parser.add_argument(
-        "--model_configs",
+        "--config",
         type=str,
-        default=",".join(DEFAULT_MODEL_CONFIGS_TO_TEST),
-        help=f"Comma-separated list of model configuration names to test (from models.yml). Defaults to: {','.join(DEFAULT_MODEL_CONFIGS_TO_TEST)}"
+        default=DEFAULT_MODEL_CONFIG,
+        help=f"Model configuration name to test (from models.yml). Defaults to: {DEFAULT_MODEL_CONFIG}"
     )
     parser.add_argument(
         "--data_dir",
@@ -291,10 +288,11 @@ if __name__ == "__main__":
         help=f"Data set directory to run. If --task_list_file is not used, .json task files are inferred from here. Defaults to {DEFAULT_DATA_DIR}"
     )
     parser.add_argument(
-        "--submissions-root", # Renamed from --save_submission_dir_base
+        "--save_submission_dir", "--submissions-root",
+        dest="save_submission_dir",
         type=str,
-        default=DEFAULT_SUBMISSIONS_ROOT,
-        help=f"Root folder name to save submissions under. Subfolders per config will be created. Defaults to {DEFAULT_SUBMISSIONS_ROOT}"
+        default=DEFAULT_SAVE_SUBMISSION_DIR,
+        help=f"Folder to save submissions under (alias: --submissions-root for backward compatibility). Defaults to {DEFAULT_SAVE_SUBMISSION_DIR}"
     )
     parser.add_argument(
         "--overwrite_submission",
@@ -333,13 +331,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Set default for boolean flags if not provided
-    # No explicit default= needed for store_true/store_false in parser.add_argument if you rely on their inherent behavior
-    # However, to be absolutely clear with our DEFAULT_ values, we can check args against them if needed,
-    # but typically argparse handles this based on action. For `store_true`, if the flag is present, it's True, else False.
-    # Our DEFAULT_OVERWRITE_SUBMISSION = False and DEFAULT_PRINT_SUBMISSION = False align with this.
-    # args.enable_metrics will also be False by default.
-
     # Set metrics enabled status based on CLI arg
     set_metrics_enabled(args.enable_metrics)
 
@@ -359,33 +350,34 @@ if __name__ == "__main__":
             handlers=[logging.StreamHandler(sys.stdout)]
         )
 
-    model_configs_list = [m.strip() for m in args.model_configs.split(',') if m.strip()]
-    if not model_configs_list: 
-        model_configs_list = DEFAULT_MODEL_CONFIGS_TO_TEST # Fallback to default
-        logger.info(f"No model_configs provided or empty, using default: {model_configs_list}")
+    config_name = args.config.strip() if args.config else DEFAULT_MODEL_CONFIG
+    if not config_name:
+        config_name = DEFAULT_MODEL_CONFIG
+        logger.info(f"No config provided or empty, using default: {config_name}")
+    if "," in config_name:
+        logger.error("run_all supports one model config per invocation. Please invoke cli/run_all.py separately for each config.")
+        sys.exit(1)
 
-    # --- Set metrics filename prefix based on the model config(s) being run --- 
+    # --- Set metrics filename prefix based on the model config being run --- 
     if args.enable_metrics:
-        config_identifier = model_configs_list[0] if len(model_configs_list) == 1 else f"{len(model_configs_list)}_configs"
         provider_name = "unknown_provider"
         try:
-            if model_configs_list: # Ensure there's at least one config
-                first_config_obj = get_model_config(model_configs_list[0])
-                provider_name = first_config_obj.provider
+            first_config_obj = get_model_config(config_name)
+            provider_name = first_config_obj.provider
         except Exception: 
-            logger.warning(f"Could not determine provider for metrics filename from config: {model_configs_list[0] if model_configs_list else 'N/A'}")
+            logger.warning(f"Could not determine provider for metrics filename from config: {config_name or 'N/A'}")
         
-        prefix = f"{provider_name}_{config_identifier}"
+        prefix = f"{provider_name}_{config_name}"
         set_metrics_filename_prefix(prefix)
         logger.info(f"Metrics enabled. Filename prefix set to: {prefix}")
     # ----------------------------------------------------------------------------
 
     # Ensure `main` returns an exit code which is then used by sys.exit
     exit_code_from_main = asyncio.run(main(
-        task_list_file=args.task_list_file, # Pass the arg here
-        model_configs_to_test=model_configs_list,
+        task_list_file=args.task_list_file,
+        config_to_test=config_name,
         data_dir=args.data_dir,
-        submissions_root=args.submissions_root,
+        save_submission_dir=args.save_submission_dir,
         overwrite_submission=args.overwrite_submission,
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,

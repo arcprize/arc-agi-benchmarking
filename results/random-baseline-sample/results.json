@@ -1,0 +1,32 @@
+{
+    "score": 0.0,
+    "total_tasks": 2,
+    "total_cost": 0.0,
+    "total_attempts": 4,
+    "avg_cost_per_task": 0.0,
+    "avg_cost_per_attempt": 0.0,
+    "avg_output_tokens_per_task": 0.0,
+    "avg_total_tokens_per_task": 0.0,
+    "avg_duration_per_task": 0.0001255,
+    "task_results": {
+        "66e6c45b": {
+            "score": 0.0,
+            "cost": 0.0,
+            "attempts": 2,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "duration": 0.000234,
+            "num_attempts_with_empty_list": 0
+        },
+        "00576224": {
+            "score": 0.0,
+            "cost": 0.0,
+            "attempts": 2,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "duration": 1.7e-05,
+            "num_attempts_with_empty_list": 0
+        }
+    },
+    "num_attempts_with_empty_list": 0
+}
