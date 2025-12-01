@@ -1,6 +1,14 @@
 # Prices are in USD per 1 million tokens.
 
 models:
+  - name: "random-baseline"
+    model_name: "random-baseline"
+    provider: "random"
+    pricing:
+      date: "2025-01-01"
+      input: 0.0
+      output: 0.0
+
 ################
 #### OpenAI ####
 ################
@@ -948,17 +956,6 @@ models:
 ################
 #### Gemini ####
 ################
-
-  - name: "gemini-3-deep-think-preview"
-    model_name: "gemini-3-deep-think-preview"
-    provider: "curlgemini"
-    max_output_tokens: 64000
-    tools:
-      - code_execution: {}
-    pricing:
-      date: "2025-11-18"
-      input: 0.00
-      output: 0.00
 
   - name: "gemini-3-pro-preview"
     model_name: "google/gemini-3-pro-preview"

@@ -1,0 +1,56 @@
+[
+    {
+        "attempt_1": {
+            "answer": [
+                [2, 0, 0, 3],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [4, 0, 0, 9]
+            ],
+            "metadata": {
+                "model": "sample-model",
+                "provider": "sample",
+                "start_timestamp": "2025-01-01T00:00:00Z",
+                "end_timestamp": "2025-01-01T00:00:01Z",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "user",
+                            "content": "ARC task prompt omitted for brevity"
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "message": {
+                            "role": "assistant",
+                            "content": "Predicted grid output"
+                        }
+                    }
+                ],
+                "reasoning_summary": null,
+                "kwargs": {},
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 10,
+                    "total_tokens": 20,
+                    "completion_tokens_details": {
+                        "reasoning_tokens": 0,
+                        "accepted_prediction_tokens": 10,
+                        "rejected_prediction_tokens": 0
+                    }
+                },
+                "cost": {
+                    "prompt_cost": 0.0,
+                    "completion_cost": 0.0,
+                    "reasoning_cost": null,
+                    "total_cost": 0.0
+                },
+                "task_id": "66e6c45b",
+                "pair_index": 0,
+                "test_id": "sample-config"
+            },
+            "correct": true
+        }
+    }
+]

@@ -8,7 +8,7 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 import json
-from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter
+from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
@@ -52,6 +52,8 @@ class ARCTester:
             return OpenRouterAdapter(self.config)
         elif provider_name == "xai":
             return XAIAdapter(self.config)
+        elif provider_name == "random":
+            return RandomAdapter(self.config)
         else:
             raise ValueError(f"Unsupported provider: {provider_name}")
         
