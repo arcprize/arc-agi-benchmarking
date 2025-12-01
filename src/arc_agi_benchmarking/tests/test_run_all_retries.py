@@ -21,6 +21,8 @@ class _TestRetryableExceptionInTestScope(Exception):
     """A simple exception defined in the test scope to simulate retryable errors."""
     pass
 
+TEST_DATA_DIR = "data/sample/tasks"
+
 class APICallSimulator:
     """Simulates the behavior of ARCTester.generate_task_solution for testing retries."""
     def __init__(self, fail_n_times: int, exception_to_raise: type[Exception]):
@@ -75,7 +77,7 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
                 config_name, 
                 task_id, 
                 limiter,
-                data_dir="data/arc-agi/data/evaluation", # DEFAULT_DATA_DIR
+                data_dir=TEST_DATA_DIR, # DEFAULT_DATA_DIR
                 submissions_root="submissions_test_retries", # Changed from save_submission_dir_base
                 overwrite_submission=True, # DEFAULT_OVERWRITE_SUBMISSION is False, but True for test clarity
                 print_submission=False, # DEFAULT_PRINT_SUBMISSION
@@ -149,7 +151,7 @@ async def test_failure_after_all_retries(caplog):
                 config_name, 
                 task_id, 
                 limiter,
-                data_dir="data/arc-agi/data/evaluation",
+                data_dir=TEST_DATA_DIR,
                 submissions_root="submissions_test_retries",
                 overwrite_submission=True,
                 print_submission=False,
@@ -199,7 +201,7 @@ async def test_non_retryable_exception(caplog):
                 config_name, 
                 task_id, 
                 limiter,
-                data_dir="data/arc-agi/data/evaluation",
+                data_dir=TEST_DATA_DIR,
                 submissions_root="submissions_test_retries",
                 overwrite_submission=True,
                 print_submission=False,

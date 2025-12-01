@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator, root_validator, field_validator
+from pydantic import BaseModel, model_validator, root_validator, field_validator, field_serializer
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 import json
@@ -122,12 +122,10 @@ class AttemptMetadata(BaseModel):
     task_id: Optional[str] = None
     pair_index: Optional[int] = 0
     test_id: Optional[str] = None
-    
-    model_config = {
-        'json_encoders': {
-            datetime: lambda v: v.isoformat()
-        }
-    }
+
+    @field_serializer("start_timestamp", "end_timestamp", when_used="json")
+    def serialize_datetime(self, value: datetime) -> str:
+        return value.isoformat()
 
     def __str__(self):
         """

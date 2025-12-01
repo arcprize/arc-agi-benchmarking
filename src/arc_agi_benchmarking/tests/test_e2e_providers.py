@@ -3,6 +3,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 import os
 import json
+from pathlib import Path
 
 from main import ARCTester 
 from arc_agi_benchmarking.adapters import ProviderAdapter # Import base class for type hinting/mocking structure
@@ -11,8 +12,8 @@ from datetime import datetime, timezone # Import datetime
 
 # Constants for the test
 PROVIDER_CONFIG = "gpt-4o-2024-11-20"
-TASK_ID = "f0afb749"
-DATA_DIR = "data/arc-agi/data/evaluation"  # Assuming tests run from root
+TASK_ID = "66e6c45b"
+DATA_DIR = Path(__file__).resolve().parents[3] / "data" / "sample" / "tasks"
 SAVE_DIR = "." # Save in the current directory for simplicity in test
 NUM_ATTEMPTS = 1 # Reduce attempts for faster testing
 RETRY_ATTEMPTS = 1

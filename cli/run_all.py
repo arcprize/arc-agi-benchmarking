@@ -70,7 +70,7 @@ DEFAULT_MODEL_CONFIGS_TO_TEST: List[str] = [
     "gpt-4o-2024-11-20",
 ]
 
-DEFAULT_DATA_DIR = "data/arc-agi/data/evaluation"
+DEFAULT_DATA_DIR = "data/sample/tasks"
 DEFAULT_SUBMISSIONS_ROOT = "submissions" # Changed from DEFAULT_SAVE_SUBMISSION_DIR_BASE
 DEFAULT_OVERWRITE_SUBMISSION = False
 DEFAULT_PRINT_SUBMISSION = False # ARCTester specific: whether it logs submission content

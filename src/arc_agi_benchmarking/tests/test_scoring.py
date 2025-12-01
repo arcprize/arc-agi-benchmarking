@@ -276,12 +276,14 @@ def test_none_submission(arc_scorer_fixture):
     # Pair 2: attempt_1 cost 0.1. Cost contribution = 0.1. num_attempts = 1.
     # Total cost = 0.1 + 0.1 = 0.2.
     # Total attempts = 1 + 1 + 1 = 3. (num_attempts += len(pair_attempts) on line 167)
-    run_test_scenario(arc_scorer_fixture, SUBMISSION_NONE, 2.0/3.0, 0.2, 3) # Expected attempts = 3
+    with pytest.warns(UserWarning, match="No attempt data found for pair 0"):
+        run_test_scenario(arc_scorer_fixture, SUBMISSION_NONE, 2.0/3.0, 0.2, 3) # Expected attempts = 3
 
 
 def test_empty_list_submission(arc_scorer_fixture):
      # Pairs 1 and 2 correct
-    run_test_scenario(arc_scorer_fixture, SUBMISSION_EMPTY_LIST, 2.0/3.0, 0.3, 3)
+    with pytest.warns(UserWarning, match="Empty list prediction"):
+        run_test_scenario(arc_scorer_fixture, SUBMISSION_EMPTY_LIST, 2.0/3.0, 0.3, 3)
 
 def test_pair_index_metadata(arc_scorer_fixture):
      # Only Pair 1 is correct (index 1) out of 3 pairs, submitted out of order
