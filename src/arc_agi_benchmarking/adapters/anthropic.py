@@ -2,6 +2,7 @@ from .provider import ProviderAdapter
 from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import anthropic
 import os
+import re
 from dotenv import load_dotenv
 import json
 from typing import List, Optional, Any
@@ -15,16 +16,55 @@ logger = logging.getLogger(__name__)
 class AnthropicAdapter(ProviderAdapter):
     def init_client(self):
         """
-        Initialize the Anthropic model
+        Initialize the Anthropic model.
+        
+        Supports two modes:
+        1. Azure: Set AZURE_ANTHROPIC_API_KEY and AZURE_ANTHROPIC_ENDPOINT
+        2. Direct Anthropic: Set ANTHROPIC_API_KEY
         """
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
+        # Default to non-Azure mode
+        self._use_azure = False
+        
+        azure_api_key = os.environ.get("AZURE_ANTHROPIC_API_KEY")
+        azure_endpoint = os.environ.get("AZURE_ANTHROPIC_ENDPOINT")
+        anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
 
-        client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
-        )
+        if azure_api_key:
+            if not azure_endpoint:
+                raise ValueError(
+                    "AZURE_ANTHROPIC_ENDPOINT is required when using AZURE_ANTHROPIC_API_KEY"
+                )
+            # Use Azure endpoint
+            self._use_azure = True
+            client = anthropic.Anthropic(
+                api_key=azure_api_key,
+                base_url=azure_endpoint,
+            )
+        elif anthropic_api_key:
+            # Use direct Anthropic API
+            self._use_azure = False
+            client = anthropic.Anthropic(
+                api_key=anthropic_api_key,
+            )
+        else:
+            raise ValueError(
+                "No API key found. Set either AZURE_ANTHROPIC_API_KEY and AZURE_ANTHROPIC_ENDPOINT "
+                "(for Azure) or ANTHROPIC_API_KEY (for direct Anthropic API)"
+            )
 
         return client
+    
+    def _get_model_name(self) -> str:
+        """
+        Get the model name to use for API calls.
+        Azure deployments don't use date suffixes, so strip them for Azure.
+        e.g., 'claude-opus-4-5-20251101-thinking-none' -> 'claude-opus-4-5' for Azure
+        """
+        model_name = self.model_config.model_name
+        if getattr(self, '_use_azure', False):
+            # Strip date suffix (format: -YYYYMMDD) and anything after it
+            model_name = re.sub(r'-\d{8}.*$', '', model_name)
+        return model_name
     
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """
@@ -138,7 +178,7 @@ class AnthropicAdapter(ProviderAdapter):
         """
 
         return self.client.messages.create(
-            model=self.model_config.model_name,
+            model=self._get_model_name(),
             messages=messages,
             tools=tools,
             **self.model_config.kwargs
@@ -149,7 +189,7 @@ class AnthropicAdapter(ProviderAdapter):
         Make a streaming API call to Anthropic and return the final complete response.
         Only the final message is returned; intermediate deltas are ignored.
         """
-        logger.debug(f"Starting streaming for Anthropic model: {self.model_config.model_name}")
+        logger.debug(f"Starting streaming for Anthropic model: {self._get_model_name()}")
 
         # Prepare kwargs for streaming, removing 'stream' to avoid duplication
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
@@ -157,7 +197,7 @@ class AnthropicAdapter(ProviderAdapter):
         try:
             # Create the stream
             with self.client.messages.stream(
-                model=self.model_config.model_name,
+                model=self._get_model_name(),
                 messages=messages,
                 tools=tools,
                 **stream_kwargs
