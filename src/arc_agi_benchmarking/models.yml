@@ -13,6 +13,271 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "robin-alpha-next-high-2025-11-24-high"
+    model_name: "robin-alpha-next-high-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "high"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "gpt-5-2-pro-2025-12-11-medium"
+    model_name: "gpt-5.2-pro-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-12-01"
+      input: 21.00
+      output: 168.00
+
+  - name: "robin-alpha-pro-2025-12-09-medium"
+    model_name: "robin-alpha-pro-2025-12-09"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "gpt-5-2-pro-2025-12-11-high"
+    model_name: "gpt-5.2-pro-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "high"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 21.00
+      output: 168.00
+
+  - name: "robin-alpha-pro-high-2025-11-24-high"
+    model_name: "robin-alpha-pro-high-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "high"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "gpt-5-2-pro-2025-12-11-xhigh"
+    model_name: "gpt-5.2-pro-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    # reasoning:
+    #   summary: "auto"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 21.00
+      output: 168.00
+
+  - name: "robin-alpha-pro-2025-11-24"
+    model_name: "robin-alpha-pro-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    # reasoning:
+    #   summary: "auto"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "robin-alpha-next-2025-11-24-xhigh"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+    #   summary: "auto"
+      effort: "xhigh"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "robin-alpha-next-2025-11-24-high-262144"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "high"
+    max_completion_tokens: 262144
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "robin-alpha-next-2025-11-24-high-196608"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "high"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "robin-alpha-next-2025-11-24-medium"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "medium"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+
+  - name: "robin-alpha-next-2025-11-24-low"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "low"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "gpt-5-2-2025-12-11-thinking-xhigh"
+    model_name: "gpt-5.2-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "xhigh"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 1.75
+      output: 14.00
+
+  - name: "gpt-5-2-2025-12-11-thinking-high"
+    model_name: "gpt-5.2-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "high"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 1.75
+      output: 14.00
+
+  - name: "gpt-5-2-2025-12-11-thinking-medium"
+    model_name: "gpt-5.2-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "medium"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 1.75
+      output: 14.00
+
+  - name: "gpt-5-2-2025-12-11-thinking-low"
+    model_name: "gpt-5.2-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "low"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 1.75
+      output: 14.00
+
+  - name: "gpt-5-2-2025-12-11-thinking-none"
+    model_name: "gpt-5.2-2025-12-11"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "none"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 1.75
+      output: 14.00
+
+  - name: "robin-alpha-next-2025-11-24"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      # summary: "auto"
+      effort: "none"
+    max_completion_tokens: 196608
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
+  - name: "robin-alpha-next-2025-11-24-high"
+    model_name: "robin-alpha-next-2025-11-24"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      summary: "auto"
+      effort: "high"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2025-12-01"
+      input: 0.00
+      output: 0.00
+
   - name: "gpt-5-1-2025-11-13-thinking-high"
     model_name: "gpt-5.1-2025-11-13"
     provider: "openai"
@@ -956,6 +1221,84 @@ models:
 ################
 #### Gemini ####
 ################
+
+  - name: "gemini-3-flash-preview-thinking-high"
+    model_name: "models/gemini-3-flash-preview"
+    provider: "gemini"
+    max_output_tokens: 64000
+    thinking_config:
+      thinking_level: "HIGH"
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-12-17"
+      input: 0.50
+      output: 3.00
+
+  - name: "gemini-3-flash-preview-thinking-low"
+    model_name: "models/gemini-3-flash-preview"
+    provider: "gemini"
+    max_output_tokens: 64000
+    thinking_config:
+      thinking_level: "LOW"
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-12-17"
+      input: 0.50
+      output: 3.00
+
+  - name: "gemini-3-flash-preview-thinking-minimal"
+    model_name: "models/gemini-3-flash-preview"
+    provider: "gemini"
+    max_output_tokens: 64000
+    thinking_config:
+      thinking_level: "MINIMAL"
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-12-17"
+      input: 0.50
+      output: 3.00
+
+  - name: "gemini-3-pro-preview-thinking-high"
+    model_name: "models/gemini-3-pro-preview"
+    provider: "gemini"
+    max_output_tokens: 64000
+    thinking_config:
+      thinking_level: "high"
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-12-17"
+      input: 2.00
+      output: 12.00
+
+  - name: "gemini-3-pro-preview-thinking-medium"
+    model_name: "models/gemini-3-pro-preview"
+    provider: "gemini"
+    max_output_tokens: 64000
+    thinking_config:
+      thinking_level: "medium"
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-12-17"
+      input: 2.00
+      output: 12.00
+
+  - name: "gemini-3-pro-preview-thinking-low"
+    model_name: "models/gemini-3-pro-preview"
+    provider: "gemini"
+    max_output_tokens: 64000
+    thinking_config:
+      thinking_level: "low"
+    automatic_function_calling:
+      disable: true
+    pricing:
+      date: "2025-12-17"
+      input: 2.00
+      output: 12.00
 
   - name: "gemini-3-pro-preview"
     model_name: "google/gemini-3-pro-preview"

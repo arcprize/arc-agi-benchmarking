@@ -289,6 +289,8 @@ class ScoringResult(BaseModel):
     score: float  # Score between 0.0 and 1.0 representing accuracy
     total_cost: float   # Total cost of all attempts
     attempts: int # Total number of attempts made
+    prompt_tokens: int # Total number of prompt tokens used
+    reasoning_tokens: int # Total number of reasoning tokens used
     output_tokens: int # Total number of output tokens used
     total_tokens: int # Total number of tokens (prompt + output) used
     duration: float # Total duration of all attempts in seconds
