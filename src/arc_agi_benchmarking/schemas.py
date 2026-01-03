@@ -92,6 +92,11 @@ class Choice(BaseModel):
     index: int
     message: Message
 
+class PromptTokensDetails(BaseModel):
+    """Breakdown of prompt/input tokens, including cache information."""
+    cache_creation_tokens: int = 0  # Tokens used to create cache
+    cache_read_tokens: int = 0  # Tokens read from cache
+
 class CompletionTokensDetails(BaseModel):
     reasoning_tokens: int
     accepted_prediction_tokens: int
@@ -101,6 +106,7 @@ class Usage(BaseModel):
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    prompt_tokens_details: Optional[PromptTokensDetails] = None  # Cache breakdown (Claude Agent SDK)
     completion_tokens_details: CompletionTokensDetails
 
 class Cost(BaseModel):
@@ -108,6 +114,14 @@ class Cost(BaseModel):
     completion_cost: float # Cost of completion_tokens * output_cost_per_token
     reasoning_cost: Optional[float] = None  # Cost of reasoning_tokens * output_cost_per_token. Optional as not all providers return it.
     total_cost: float      # Sum of prompt_cost, completion_cost, and reasoning_cost
+
+class ToolCall(BaseModel):
+    """A single tool call made during agentic execution."""
+    tool_name: str
+    tool_use_id: str
+    input: Dict[str, Any]
+    output: Optional[Dict[str, Any]] = None
+    is_error: bool = False
 
 class AttemptMetadata(BaseModel):
     model: str
@@ -122,6 +136,8 @@ class AttemptMetadata(BaseModel):
     task_id: Optional[str] = None
     pair_index: Optional[int] = 0
     test_id: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None  # Tool calls made during agentic execution (Claude Agent SDK)
+    num_turns: Optional[int] = None  # Number of agentic turns (Claude Agent SDK)
 
     @field_serializer("start_timestamp", "end_timestamp", when_used="json")
     def serialize_datetime(self, value: datetime) -> str:

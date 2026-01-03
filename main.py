@@ -9,7 +9,7 @@ if _src_dir not in sys.path:
 
 import json
 from pathlib import Path
-from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter
+from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, ClaudeagentsdkAdapter
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
@@ -23,6 +23,21 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
+PROVIDER_ADAPTERS = {
+    "anthropic": AnthropicAdapter,
+    "openai": OpenAIAdapter,
+    "deepseek": DeepseekAdapter,
+    "gemini": GeminiAdapter,
+    "huggingfacefireworks": HuggingFaceFireworksAdapter,
+    "fireworks": FireworksAdapter,
+    "grok": GrokAdapter,
+    "openrouter": OpenRouterAdapter,
+    "xai": XAIAdapter,
+    "random": RandomAdapter,
+    "claudeagentsdk": ClaudeagentsdkAdapter,
+}
+
+
 class ARCTester:
     def __init__(self, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int):
         self.config = config
@@ -35,28 +50,11 @@ class ARCTester:
         self.retry_attempts = retry_attempts
 
     def init_provider(self, provider_name: str) -> ProviderAdapter:
-        if provider_name == "anthropic":
-            return AnthropicAdapter(self.config)
-        elif provider_name == "openai":
-            return OpenAIAdapter(self.config)
-        elif provider_name == "deepseek":
-            return DeepseekAdapter(self.config)
-        elif provider_name == "gemini":
-            return GeminiAdapter(self.config)
-        elif provider_name == "huggingfacefireworks":
-            return HuggingFaceFireworksAdapter(self.config)
-        elif provider_name == "fireworks":
-            return FireworksAdapter(self.config)
-        elif provider_name == "grok":
-            return GrokAdapter(self.config)
-        elif provider_name == "openrouter":
-            return OpenRouterAdapter(self.config)
-        elif provider_name == "xai":
-            return XAIAdapter(self.config)
-        elif provider_name == "random":
-            return RandomAdapter(self.config)
-        else:
+        try:
+            adapter_cls = PROVIDER_ADAPTERS[provider_name]
+        except KeyError:
             raise ValueError(f"Unsupported provider: {provider_name}")
+        return adapter_cls(self.config)
         
     def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
         """

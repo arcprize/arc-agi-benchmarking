@@ -13,6 +13,7 @@ classifiers = [
 dependencies = [
     "annotated-types==0.7.0",
     "anyio==4.9.0",
+    "claude-agent-sdk==0.1.18",
     "click==8.1.8",
     "distro==1.9.0",
     "filelock==3.16.1",

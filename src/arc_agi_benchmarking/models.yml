@@ -1218,6 +1218,34 @@ models:
       input: 15.00  # Single input price per 1M tokens.
       output: 75.00 # Single output price per 1M tokens.
 
+##########################
+#### Claude Agent SDK ####
+##########################
+
+  - name: "claude-opus-4-5-20251101-claudeagentsdk"
+    model_name: "claude-opus-4-5-20251101"
+    provider: "claudeagentsdk"
+    pricing:
+      date: "2026-01-02"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-sonnet-4-5-20250929-claudeagentsdk"
+    model_name: "claude-sonnet-4-5-20250929"
+    provider: "claudeagentsdk"
+    pricing:
+      date: "2026-01-02"
+      input: 3.00
+      output: 15.00
+
+  - name: "claude-haiku-4-5-20251001-claudeagentsdk"
+    model_name: "claude-haiku-4-5-20251001"
+    provider: "claudeagentsdk"
+    pricing:
+      date: "2026-01-02"
+      input: 1.00
+      output: 5.00
+
 ################
 #### Gemini ####
 ################

@@ -37,5 +37,9 @@ openrouter:
   rate: 400     # 400 requests
   period: 60    # per 60 seconds
 
+claudeagentsdk:
+  rate: 15     # 20 requests
+  period: 60    # per 60 seconds
+
 # Add other provider keys (matching models.yml 'provider' field) and their limits as needed.
-# Ensure these provider keys exactly match what's in your models.yml for each model config. 
+# Ensure these provider keys exactly match what's in your models.yml for each model config.
