@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 import logging
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # Assuming 'cli.run_all' can be imported. This might require PYTHONPATH adjustments
@@ -74,15 +75,16 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
 
             # Execute the function under test
             result = await run_single_test_wrapper(
-                config_name, 
-                task_id, 
+                config_name,
+                task_id,
                 limiter,
                 data_dir=TEST_DATA_DIR, # DEFAULT_DATA_DIR
                 save_submission_dir="submissions_test_retries",
                 overwrite_submission=True, # DEFAULT_OVERWRITE_SUBMISSION is False, but True for test clarity
                 print_submission=False, # DEFAULT_PRINT_SUBMISSION
                 num_attempts=1, # DEFAULT_NUM_ATTEMPTS is 2, using 1 for faster test
-                retry_attempts=1  # DEFAULT_RETRY_ATTEMPTS is 2, using 1 for faster test
+                retry_attempts=1,  # DEFAULT_RETRY_ATTEMPTS is 2, using 1 for faster test
+                logs_base_dir=Path("test_logs")
             )
 
             # Assertions
@@ -148,15 +150,16 @@ async def test_failure_after_all_retries(caplog):
 
             limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
             result = await run_single_test_wrapper(
-                config_name, 
-                task_id, 
+                config_name,
+                task_id,
                 limiter,
                 data_dir=TEST_DATA_DIR,
                 save_submission_dir="submissions_test_retries",
                 overwrite_submission=True,
                 print_submission=False,
                 num_attempts=1,
-                retry_attempts=1
+                retry_attempts=1,
+                logs_base_dir=Path("test_logs")
             )
 
             assert result is False, "Wrapper should return False when all retries are exhausted."
@@ -198,15 +201,16 @@ async def test_non_retryable_exception(caplog):
 
             limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
             result = await run_single_test_wrapper(
-                config_name, 
-                task_id, 
+                config_name,
+                task_id,
                 limiter,
                 data_dir=TEST_DATA_DIR,
                 save_submission_dir="submissions_test_retries",
                 overwrite_submission=True,
                 print_submission=False,
                 num_attempts=1,
-                retry_attempts=1
+                retry_attempts=1,
+                logs_base_dir=Path("test_logs")
             )
 
             assert result is False, "Wrapper should return False on non-retryable exception."

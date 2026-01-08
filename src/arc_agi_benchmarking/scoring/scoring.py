@@ -16,6 +16,8 @@ class ARCScorer:
         self.results_dir = Path(results_dir) if results_dir else None
         self.total_cost = 0.0
         self.total_attempts = 0
+        self.total_prompt_tokens = 0
+        self.total_reasoning_tokens = 0
         self.total_output_tokens = 0
         self.total_all_tokens = 0
         self.total_duration = 0.0
@@ -45,6 +47,8 @@ class ARCScorer:
         task_cost = 0.0
         num_attempts = 0
         num_attempts_with_empty_list = 0
+        prompt_tokens = 0
+        reasoning_tokens = 0
         output_tokens = 0
         all_tokens = 0
         total_duration = 0.0
@@ -98,8 +102,11 @@ class ARCScorer:
                     raise TypeError(f"Attempt {attempt_data} is not an Attempt object")
                     
                 task_cost += attempt_data.metadata.cost.total_cost
-                output_tokens += attempt_data.metadata.usage.completion_tokens
-                all_tokens += attempt_data.metadata.usage.total_tokens
+                usage = attempt_data.metadata.usage
+                prompt_tokens += usage.prompt_tokens
+                reasoning_tokens += usage.completion_tokens_details.reasoning_tokens
+                output_tokens += usage.completion_tokens
+                all_tokens += usage.total_tokens
                 total_duration += (attempt_data.metadata.end_timestamp - attempt_data.metadata.start_timestamp).total_seconds()
             
                 if attempt_data is None:
@@ -120,6 +127,8 @@ class ARCScorer:
             score=task_score / num_pairs if num_pairs > 0 else 0.0,
             total_cost=task_cost,
             attempts=num_attempts,
+            prompt_tokens=prompt_tokens,
+            reasoning_tokens=reasoning_tokens,
             output_tokens=output_tokens,
             total_tokens=all_tokens,
             duration=total_duration,
@@ -163,6 +172,8 @@ class ARCScorer:
             total_tasks += 1
             self.total_cost += scoring_result.total_cost
             self.total_attempts += scoring_result.attempts
+            self.total_prompt_tokens += scoring_result.prompt_tokens
+            self.total_reasoning_tokens += scoring_result.reasoning_tokens
             self.total_output_tokens += scoring_result.output_tokens
             self.total_all_tokens += scoring_result.total_tokens
             self.total_duration += scoring_result.duration
@@ -172,17 +183,26 @@ class ARCScorer:
                 "score": scoring_result.score,
                 "cost": scoring_result.total_cost,
                 "attempts": scoring_result.attempts,
+                "prompt_tokens": scoring_result.prompt_tokens,
+                "reasoning_tokens": scoring_result.reasoning_tokens,
                 "output_tokens": scoring_result.output_tokens,
                 "total_tokens": scoring_result.total_tokens,
                 "duration": scoring_result.duration,
                 "num_attempts_with_empty_list": scoring_result.num_attempts_with_empty_list
             }
 
-            self.print_log(f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.total_cost:.4f}, attempts: {scoring_result.attempts}, output_tokens: {scoring_result.output_tokens}, total_tokens: {scoring_result.total_tokens}, duration: {scoring_result.duration}")
+            self.print_log(
+                f"    Task {task_id} score: {scoring_result.score:.2f}, cost: ${scoring_result.total_cost:.4f}, "
+                f"attempts: {scoring_result.attempts}, prompt_tokens: {scoring_result.prompt_tokens}, "
+                f"reasoning_tokens: {scoring_result.reasoning_tokens}, output_tokens: {scoring_result.output_tokens}, "
+                f"total_tokens: {scoring_result.total_tokens}, duration: {scoring_result.duration}"
+            )
 
         # Calculate average costs
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
         avg_cost_per_attempt = self.total_cost / self.total_attempts if self.total_attempts > 0 else 0
+        avg_prompt_tokens_per_task = self.total_prompt_tokens / total_tasks if total_tasks > 0 else 0
+        avg_reasoning_tokens_per_task = self.total_reasoning_tokens / total_tasks if total_tasks > 0 else 0
         avg_output_tokens_per_task = self.total_output_tokens / total_tasks if total_tasks > 0 else 0
         avg_total_tokens_per_task = self.total_all_tokens / total_tasks if total_tasks > 0 else 0
         avg_duration_per_task = self.total_duration / total_tasks if total_tasks > 0 else 0
@@ -201,6 +221,8 @@ class ARCScorer:
                     "total_attempts": self.total_attempts,
                     "avg_cost_per_task": avg_cost_per_task,
                     "avg_cost_per_attempt": avg_cost_per_attempt,
+                    "avg_prompt_tokens_per_task": avg_prompt_tokens_per_task,
+                    "avg_reasoning_tokens_per_task": avg_reasoning_tokens_per_task,
                     "avg_output_tokens_per_task": avg_output_tokens_per_task,
                     "avg_total_tokens_per_task": avg_total_tokens_per_task,
                     "avg_duration_per_task": avg_duration_per_task,
@@ -214,6 +236,8 @@ class ARCScorer:
         print(f"Total Cost: ${self.total_cost:.4f}")
         print(f"Average Cost per Task: ${avg_cost_per_task:.4f}")
         print(f"Average Cost per Attempt: ${avg_cost_per_attempt:.4f}")
+        print(f"Average Prompt Tokens per Task: {avg_prompt_tokens_per_task}")
+        print(f"Average Reasoning Tokens per Task: {avg_reasoning_tokens_per_task}")
         print(f"Average Output Tokens per Task: {avg_output_tokens_per_task}")
         print(f"Average Total Tokens per Task: {avg_total_tokens_per_task}")
         print(f"Average Duration per Task: {avg_duration_per_task}")

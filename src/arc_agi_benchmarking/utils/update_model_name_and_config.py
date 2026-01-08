@@ -15,6 +15,9 @@ from pathlib import Path
 # Import the required functions
 from arc_agi_benchmarking.utils.task_utils import read_models_config
 
+# Guard to avoid spamming the same debug line for many files
+_printed_config_lookup = False
+
 
 def update_json_file_model_and_config(filepath: Path, config_name: str) -> None:
     """
@@ -24,7 +27,18 @@ def update_json_file_model_and_config(filepath: Path, config_name: str) -> None:
         filepath: Path to the JSON file
         config_name: New model configuration name to use
     """
+    global _printed_config_lookup
     print(f"Processing {filepath}...")
+
+    if not _printed_config_lookup:
+        base_dir = Path(__file__).resolve().parent.parent
+        models_path = base_dir / "models.yml"
+        private_path = base_dir / "models_private.yml"
+        print(f"[DEBUG] Looking for config '{config_name}' in:")
+        print(f"        models.yml        -> {models_path} (exists={models_path.exists()})")
+        print(f"        models_private.yml -> {private_path} (exists={private_path.exists()})")
+        print(f"        ARC_MODELS_YML env -> {os.environ.get('ARC_MODELS_YML', 'not set')}")
+        _printed_config_lookup = True
     
     # Read the JSON file
     with open(filepath, 'r') as f:

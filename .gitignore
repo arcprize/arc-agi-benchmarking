@@ -179,3 +179,5 @@ analyze_submission_times.py
 .cursorignore
 *local*
 .claude
+/logs/*
+/test_logs/*
