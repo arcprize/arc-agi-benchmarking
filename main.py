@@ -8,8 +8,8 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 import json
+from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, AzureAdapter, ClaudeagentsdkAdapter
 from pathlib import Path
-from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, ClaudeagentsdkAdapter
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
@@ -34,6 +34,7 @@ PROVIDER_ADAPTERS = {
     "openrouter": OpenRouterAdapter,
     "xai": XAIAdapter,
     "random": RandomAdapter,
+    "azure": AzureAdapter,  
     "claudeagentsdk": ClaudeagentsdkAdapter,
 }
 
