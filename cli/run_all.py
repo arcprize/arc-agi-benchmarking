@@ -3,6 +3,9 @@ import os
 import argparse
 import time
 from typing import List, Tuple, Dict, Any, Optional
+from pathlib import Path
+import json
+import contextvars
 
 import sys
 import logging
@@ -26,6 +29,23 @@ from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
 logger = logging.getLogger(__name__)
+
+# Context for per-task logging
+LOG_CONFIG_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("log_config", default=None)
+LOG_TASK_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("log_task", default=None)
+
+# Extend log records with config/task context
+_ORIGINAL_RECORD_FACTORY = logging.getLogRecordFactory()
+
+def _record_factory(*args, **kwargs):
+    record = _ORIGINAL_RECORD_FACTORY(*args, **kwargs)
+    record.config_name = LOG_CONFIG_CTX.get()
+    record.task_id = LOG_TASK_CTX.get()
+    return record
+
+
+# Apply the record factory globally (once)
+logging.setLogRecordFactory(_record_factory)
 
 # Attempt to import provider-specific exceptions for retrying
 try:
@@ -112,7 +132,8 @@ def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) ->
 async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter,
                                   data_dir: str, save_submission_dir: str,
                                   overwrite_submission: bool, print_submission: bool,
-                                  num_attempts: int, retry_attempts: int) -> bool: # removed print_logs
+                                  num_attempts: int, retry_attempts: int,
+                                  logs_base_dir: Path) -> bool: # removed print_logs
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     # Apply tenacity retry decorator directly to the synchronous function
@@ -125,6 +146,43 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
     )
     def _synchronous_task_execution_attempt_with_tenacity():
         logger.debug(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
+
+        # Configure per-task JSONL file logging: <logs_base_dir>/<config>/<task_id>/openai.jsonl
+        log_dir = logs_base_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"{task_id}.jsonl"
+
+        # Ensure only records for this task/config reach this file handler
+        class _TaskFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                return record.config_name == config_name and record.task_id == task_id
+
+        # Set context vars so every log record (including library logs) carries config/task ids
+        config_token = LOG_CONFIG_CTX.set(config_name)
+        task_token = LOG_TASK_CTX.set(task_id)
+
+        class _JsonFormatter(logging.Formatter):
+            def format(self, record):
+                payload = {
+                    "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+                    "level": record.levelname,
+                    "logger": record.name,
+                    "message": record.getMessage(),
+                }
+                if record.exc_info:
+                    payload["exc_info"] = self.formatException(record.exc_info)
+                # Include context for easier grepping
+                payload["config"] = config_name
+                payload["task_id"] = task_id
+                return json.dumps(payload)
+
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setFormatter(_JsonFormatter())
+        file_handler.addFilter(_TaskFilter())
+        logging.getLogger().addHandler(file_handler)
+        logging.getLogger("openai").setLevel(logging.INFO)
+        logger.info(f"[Thread-{task_id}-{config_name}] OpenAI SDK logs will be written to {log_path}")
+
         arc_solver = ARCTester(
             config=config_name,
             save_submission_dir=save_submission_dir,
@@ -135,11 +193,17 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             # print_logs removed from ARCTester instantiation
         )
         logger.debug(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
-        arc_solver.generate_task_solution(
-            data_dir=data_dir,
-            task_id=task_id
-        )
-        logger.debug(f"[Thread-{task_id}-{config_name}] Task attempt completed successfully.")
+        try:
+            arc_solver.generate_task_solution(
+                data_dir=data_dir,
+                task_id=task_id
+            )
+            logger.debug(f"[Thread-{task_id}-{config_name}] Task attempt completed successfully.")
+        finally:
+            LOG_CONFIG_CTX.reset(config_token)
+            LOG_TASK_CTX.reset(task_token)
+            logging.getLogger().removeHandler(file_handler)
+            file_handler.close()
 
     try:
         async with limiter:
@@ -156,7 +220,8 @@ async def main(task_list_file: Optional[str],
                config_to_test: str,
                data_dir: str, save_submission_dir: str,
                overwrite_submission: bool, print_submission: bool,
-               num_attempts: int, retry_attempts: int) -> int: # Added return type hint
+               num_attempts: int, retry_attempts: int,
+               logs_base_dir: Path) -> int: # Added return type hint
     # Basic logging setup is now done in if __name__ == "__main__"
     
     start_time = time.perf_counter()
@@ -225,7 +290,8 @@ async def main(task_list_file: Optional[str],
                 config_name, task_id, limiter,
                 data_dir, save_submission_dir,
                 overwrite_submission, print_submission, 
-                num_attempts, retry_attempts
+                num_attempts, retry_attempts,
+                logs_base_dir
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
@@ -328,6 +394,12 @@ if __name__ == "__main__":
         action="store_true", # Defaults to False if not present
         help="Enable metrics collection and dumping (disabled by default)."
     )
+    parser.add_argument(
+        "--logs-base-dir",
+        type=str,
+        default="logs",
+        help="Base directory for JSONL logs. Per-task logs go to <base>/<config>/<task_id>/openai.jsonl (default: logs)."
+    )
 
     args = parser.parse_args()
 
@@ -372,6 +444,12 @@ if __name__ == "__main__":
         logger.info(f"Metrics enabled. Filename prefix set to: {prefix}")
     # ----------------------------------------------------------------------------
 
+    # Resolve logs base dir; if relative, anchor to project root for consistency
+    logs_base_dir = Path(args.logs_base_dir)
+    if not logs_base_dir.is_absolute():
+        project_root = Path(__file__).resolve().parent.parent
+        logs_base_dir = (project_root / logs_base_dir).resolve()
+
     # Ensure `main` returns an exit code which is then used by sys.exit
     exit_code_from_main = asyncio.run(main(
         task_list_file=args.task_list_file,
@@ -381,7 +459,8 @@ if __name__ == "__main__":
         overwrite_submission=args.overwrite_submission,
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
-        retry_attempts=args.retry_attempts
+        retry_attempts=args.retry_attempts,
+        logs_base_dir=logs_base_dir
     ))
     
     sys.exit(exit_code_from_main) 

@@ -4,6 +4,7 @@ import subprocess
 import sys
 import os
 import argparse
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # Add project root to sys.path to allow importing main and cli.run_all
@@ -162,7 +163,8 @@ async def test_orchestrator_log_levels(
         overwrite_submission=False,
         print_submission=False,
         num_attempts=1,
-        retry_attempts=1
+        retry_attempts=1,
+        logs_base_dir=Path("test_logs")
     )
 
     # Filter records from the 'cli.run_all' logger
@@ -219,7 +221,8 @@ async def test_orchestrator_log_level_none(mock_exit, mock_open, mock_get_model_
         overwrite_submission=False,
         print_submission=False,
         num_attempts=1,
-        retry_attempts=1
+        retry_attempts=1,
+        logs_base_dir=Path("test_logs")
     )
 
     assert len(caplog.records) == 0, f"Expected no log records, but got {len(caplog.records)}: {caplog.text}"
