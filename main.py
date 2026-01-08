@@ -51,29 +51,6 @@ class ARCTester:
         self.retry_attempts = retry_attempts
 
     def init_provider(self, provider_name: str) -> ProviderAdapter:
-        if provider_name == "anthropic":
-            return AnthropicAdapter(self.config)
-        elif provider_name == "openai":
-            return OpenAIAdapter(self.config)
-        elif provider_name == "deepseek":
-            return DeepseekAdapter(self.config)
-        elif provider_name == "gemini":
-            return GeminiAdapter(self.config)
-        elif provider_name == "huggingfacefireworks":
-            return HuggingFaceFireworksAdapter(self.config)
-        elif provider_name == "fireworks":
-            return FireworksAdapter(self.config)
-        elif provider_name == "grok":
-            return GrokAdapter(self.config)
-        elif provider_name == "openrouter":
-            return OpenRouterAdapter(self.config)
-        elif provider_name == "xai":
-            return XAIAdapter(self.config)
-        elif provider_name == "random":
-            return RandomAdapter(self.config)
-        elif provider_name == "azure":
-            return AzureAdapter(self.config)
-        else:
         try:
             adapter_cls = PROVIDER_ADAPTERS[provider_name]
         except KeyError:
