@@ -11,3 +11,4 @@ from .grok import GrokAdapter
 from .openrouter import OpenRouterAdapter
 from .xai import XAIAdapter
 from .random import RandomAdapter
+from .azure import AzureAdapter
