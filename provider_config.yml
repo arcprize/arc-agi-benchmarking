@@ -3,7 +3,7 @@
 # 'rate' is the number of allowed requests per 'period' seconds.
 
 openai:
-  rate: 20     # 400 requests
+  rate: 20
   period: 60    # per 60 seconds
 
 anthropic:
@@ -39,6 +39,10 @@ openrouter:
 
 claudeagentsdk:
   rate: 15     # 20 requests
+  period: 60    # per 60 seconds
+
+codexcli:
+  rate: 10     # 10 requests
   period: 60    # per 60 seconds
 
 # Add other provider keys (matching models.yml 'provider' field) and their limits as needed.

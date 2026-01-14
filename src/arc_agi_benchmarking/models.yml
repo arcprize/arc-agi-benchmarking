@@ -13,20 +13,6 @@ models:
 #### OpenAI ####
 ################
 
-  - name: "robin-alpha-next-high-2025-11-24-high"
-    model_name: "robin-alpha-next-high-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      # summary: "auto"
-      effort: "high"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
   - name: "gpt-5-2-pro-2025-12-11-medium"
     model_name: "gpt-5.2-pro-2025-12-11"
     provider: "openai"
@@ -40,20 +26,6 @@ models:
       date: "2025-12-01"
       input: 21.00
       output: 168.00
-
-  - name: "robin-alpha-pro-2025-12-09-medium"
-    model_name: "robin-alpha-pro-2025-12-09"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      # summary: "auto"
-      effort: "medium"
-    max_completion_tokens: 128000
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
 
   - name: "gpt-5-2-pro-2025-12-11-high"
     model_name: "gpt-5.2-pro-2025-12-11"
@@ -69,20 +41,6 @@ models:
       input: 21.00
       output: 168.00
 
-  - name: "robin-alpha-pro-high-2025-11-24-high"
-    model_name: "robin-alpha-pro-high-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      # summary: "auto"
-      effort: "high"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
   - name: "gpt-5-2-pro-2025-12-11-xhigh"
     model_name: "gpt-5.2-pro-2025-12-11"
     provider: "openai"
@@ -95,90 +53,6 @@ models:
       date: "2025-12-01"
       input: 21.00
       output: 168.00
-
-  - name: "robin-alpha-pro-2025-11-24"
-    model_name: "robin-alpha-pro-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    # reasoning:
-    #   summary: "auto"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
-  - name: "robin-alpha-next-2025-11-24-xhigh"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-    #   summary: "auto"
-      effort: "xhigh"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
-  - name: "robin-alpha-next-2025-11-24-high-262144"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      summary: "auto"
-      effort: "high"
-    max_completion_tokens: 262144
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
-  - name: "robin-alpha-next-2025-11-24-high-196608"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      summary: "auto"
-      effort: "high"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
-  - name: "robin-alpha-next-2025-11-24-medium"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      # summary: "auto"
-      effort: "medium"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
-
-  - name: "robin-alpha-next-2025-11-24-low"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      # summary: "auto"
-      effort: "low"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
 
   - name: "gpt-5-2-2025-12-11-thinking-xhigh"
     model_name: "gpt-5.2-2025-12-11"
@@ -249,34 +123,6 @@ models:
       date: "2025-12-01"
       input: 1.75
       output: 14.00
-
-  - name: "robin-alpha-next-2025-11-24"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      # summary: "auto"
-      effort: "none"
-    max_completion_tokens: 196608
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
-
-  - name: "robin-alpha-next-2025-11-24-high"
-    model_name: "robin-alpha-next-2025-11-24"
-    provider: "openai"
-    api_type: "responses"
-    background: true
-    reasoning:
-      summary: "auto"
-      effort: "high"
-    max_completion_tokens: 128000
-    pricing:
-      date: "2025-12-01"
-      input: 0.00
-      output: 0.00
 
   - name: "gpt-5-1-2025-11-13-thinking-high"
     model_name: "gpt-5.1-2025-11-13"
@@ -557,6 +403,38 @@ models:
       date: "2025-05-16"
       input: 1.50   # Standard input price; note: a cached input rate of 0.075 exists.
       output: 6.00
+
+  - name: "gpt-5-1-codex-mini-openai"
+    model_name: "gpt-5.1-codex-mini"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    max_completion_tokens: 100000
+    pricing:
+      date: "2025-05-16"
+      input: 0.25
+      output: 2.00
+
+  - name: "gpt-5-1-codex-max-codexcli"
+    model_name: "gpt-5.1-codex-max"
+    provider: "codexcli"
+    sandbox_mode: "workspace-write"
+    approval_policy: "never"
+    pricing:
+      date: "2025-05-16"
+      input: 1.25   # Standard input price; note: a cached input rate of 0.075 exists.
+      output: 10.00
+
+
+  - name: "gpt-5-1-codex-mini-codexcli"
+    model_name: "gpt-5.1-codex-mini"
+    provider: "codexcli"
+    sandbox_mode: "workspace-write"
+    approval_policy: "never"
+    pricing:
+      date: "2025-05-16"
+      input: 0.25   # Standard input price; note: a cached input rate of 0.075 exists.
+      output: 2.00
 
   - name: "o3-2025-04-16-high"
     model_name: "o3-2025-04-16"

@@ -12,3 +12,4 @@ from .openrouter import OpenRouterAdapter
 from .xai import XAIAdapter
 from .random import RandomAdapter
 from .claudeagentsdk import ClaudeagentsdkAdapter
+from .codexcli import CodexcliAdapter
