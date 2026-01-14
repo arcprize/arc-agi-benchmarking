@@ -1,7 +1,6 @@
 from .provider import ProviderAdapter
 from .openai_base import OpenAIBaseAdapter
 import os
-from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
@@ -9,8 +8,6 @@ from arc_agi_benchmarking.schemas import APIType, AttemptMetadata, Choice, Messa
 from typing import Optional, Any, List, Dict
 
 import re
-
-load_dotenv()
 
 
 class OpenAIAdapter(OpenAIBaseAdapter):

@@ -10,6 +10,9 @@ import contextvars
 import sys
 import logging
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Add the project root directory and the src directory to sys.path
 # This allows cli/run_all.py to import 'main' and 'src' from the project root
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
