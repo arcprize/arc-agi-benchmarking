@@ -465,9 +465,82 @@ class TestOpenAIBaseProviderLogic:
         adapter_instance.model_config.stream = True
         adapter_instance.model_config.background = True
         adapter_instance.model_config.kwargs = {'stream': True, 'background': True}
-        
+
         prompt = "Test prompt"
-        
+
         # Should raise ValueError when both streaming and background are enabled
         with pytest.raises(ValueError, match="Cannot enable both streaming and background for the responses API type"):
             adapter_instance._call_ai_model(prompt)
+
+    # --- Tests for extract_json_from_response ---
+
+    def test_extract_json_direct_array(self, adapter_class, adapter_instance):
+        """Test extracting a direct JSON array of arrays."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call, \
+             patch.object(adapter_class, '_get_content') as mock_get_content:
+            mock_get_content.return_value = "[[1, 2], [3, 4]]"
+
+            result = adapter_instance.extract_json_from_response("some response")
+
+            assert result == [[1, 2], [3, 4]]
+
+    def test_extract_json_dict_with_response_key(self, adapter_class, adapter_instance):
+        """Test extracting JSON from a dict with 'response' key."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call, \
+             patch.object(adapter_class, '_get_content') as mock_get_content:
+            mock_get_content.return_value = '{"response": [[5, 6], [7, 8]]}'
+
+            result = adapter_instance.extract_json_from_response("some response")
+
+            assert result == [[5, 6], [7, 8]]
+
+    def test_extract_json_code_block_wrapped(self, adapter_class, adapter_instance):
+        """Test extracting JSON wrapped in markdown code blocks."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call, \
+             patch.object(adapter_class, '_get_content') as mock_get_content:
+            mock_get_content.return_value = "```json\n[[1, 2], [3, 4]]\n```"
+
+            result = adapter_instance.extract_json_from_response("some response")
+
+            # After code block removal, should find the array via regex or bracket search
+            assert result == [[1, 2], [3, 4]]
+
+    def test_extract_json_with_surrounding_text(self, adapter_class, adapter_instance):
+        """Test extracting JSON array embedded in surrounding text."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call, \
+             patch.object(adapter_class, '_get_content') as mock_get_content:
+            mock_get_content.return_value = "The answer is [[1, 2], [3, 4]] as shown above."
+
+            result = adapter_instance.extract_json_from_response("some response")
+
+            assert result == [[1, 2], [3, 4]]
+
+    def test_extract_json_invalid_returns_none(self, adapter_class, adapter_instance):
+        """Test that invalid/unparseable responses return None."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call, \
+             patch.object(adapter_class, '_get_content') as mock_get_content:
+            mock_get_content.return_value = "I don't know the answer"
+
+            result = adapter_instance.extract_json_from_response("some response")
+
+            assert result is None
+
+    def test_extract_json_ai_call_failure_fallback(self, adapter_class, adapter_instance):
+        """Test fallback to input when AI call fails."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call:
+            mock_call.side_effect = Exception("API Error")
+
+            # Even with AI failure, if input contains valid JSON it should parse
+            result = adapter_instance.extract_json_from_response("[[9, 9], [8, 8]]")
+
+            assert result == [[9, 9], [8, 8]]
+
+    def test_extract_json_nested_in_explanation(self, adapter_class, adapter_instance):
+        """Test regex extraction when array is nested in explanation text."""
+        with patch.object(adapter_class, '_call_ai_model') as mock_call, \
+             patch.object(adapter_class, '_get_content') as mock_get_content:
+            mock_get_content.return_value = "Based on the pattern, the output should be [[0, 1, 2], [3, 4, 5]] because of the transformation rules."
+
+            result = adapter_instance.extract_json_from_response("some response")
+
+            assert result == [[0, 1, 2], [3, 4, 5]]
