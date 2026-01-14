@@ -1,12 +1,4 @@
-import sys
 import os
-
-# Add the src directory to sys.path to allow direct execution of main.py
-_project_root = os.path.dirname(os.path.abspath(__file__))
-_src_dir = os.path.join(_project_root, 'src')
-if _src_dir not in sys.path:
-    sys.path.insert(0, _src_dir)
-
 import json
 from pathlib import Path
 from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, ClaudeagentsdkAdapter, CodexcliAdapter
