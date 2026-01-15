@@ -1,6 +1,5 @@
 from .provider import ProviderAdapter
 import os
-from dotenv import load_dotenv
 import json
 from google import genai
 from google.genai import types
@@ -9,7 +8,6 @@ from datetime import datetime, timezone
 from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import logging
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class _StreamResponse:

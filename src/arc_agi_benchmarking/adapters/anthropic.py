@@ -2,13 +2,10 @@ from .provider import ProviderAdapter
 from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
 import anthropic
 import os
-from dotenv import load_dotenv
 import json
 from typing import List, Optional, Any
 from datetime import datetime, timezone
 import logging
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

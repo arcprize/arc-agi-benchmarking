@@ -10,7 +10,6 @@ from arc_agi_benchmarking.schemas import (
     Attempt,
     ToolCall,
 )
-from dotenv import load_dotenv
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 import subprocess
@@ -18,8 +17,6 @@ import logging
 import json
 import os
 import shutil
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
