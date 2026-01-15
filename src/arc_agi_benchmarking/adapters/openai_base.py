@@ -226,11 +226,22 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         Delete a response from the OpenAI API
         """
         self.client.responses.delete(response_id)
-    
+
+    def _ensure_verbosity(self) -> None:
+        """
+        Ensure verbosity is set to 'high' for Responses API calls unless explicitly configured.
+        This ensures reasoning models return detailed reasoning logs.
+        """
+        if 'text' not in self.model_config.kwargs:
+            self.model_config.kwargs['text'] = {'verbosity': 'high'}
+        elif 'verbosity' not in self.model_config.kwargs['text']:
+            self.model_config.kwargs['text']['verbosity'] = 'high'
+
     def _responses(self, messages: List[Dict[str, str]]) -> Any:
         """
         Make a call to the OpenAI Responses API
         """
+        self._ensure_verbosity()
 
         resp = self.client.responses.create(
             model=self.model_config.model_name,
@@ -259,7 +270,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         Make a streaming call to the OpenAI Responses API and return the final response.
         """
         logger.debug(f"Starting streaming responses for model: {self.model_config.model_name}")
-        
+
+        self._ensure_verbosity()
+
         # Prepare kwargs for streaming, removing 'stream' to avoid duplication
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
         
