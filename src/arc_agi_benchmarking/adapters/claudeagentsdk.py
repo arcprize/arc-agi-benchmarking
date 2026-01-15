@@ -1,14 +1,11 @@
 from .provider import ProviderAdapter
 from arc_agi_benchmarking.schemas import AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, PromptTokensDetails, Attempt, ToolCall
 import os
-from dotenv import load_dotenv
 import json
 from typing import List, Optional, Any
 from datetime import datetime, timezone
 import logging
 import asyncio
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

@@ -246,7 +246,7 @@ class ARCScorer:
 
         return total_score, total_tasks
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Run ARC Tester")
 
     parser.add_argument("--task_dir", type=str, help="Task directory which contains the full tasks (including solutions)")
@@ -264,3 +264,7 @@ if __name__ == "__main__":
     )
 
     arc_scorer.score_submission()
+
+
+if __name__ == "__main__":
+    main()

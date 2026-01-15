@@ -10,6 +10,9 @@ import contextvars
 import sys
 import logging
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Add project root to sys.path to allow importing main.py (which contains ARCTester)
 # Note: arc_agi_benchmarking package imports work via pip install -e .
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -20,6 +23,7 @@ from main import ARCTester
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
+from arc_agi_benchmarking.utils.preflight import run_preflight
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
@@ -395,6 +399,17 @@ if __name__ == "__main__":
         default="logs",
         help="Base directory for JSONL logs. Per-task logs go to <base>/<config>/<task_id>/openai.jsonl (default: logs)."
     )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip preflight validation checks (not recommended for production runs)."
+    )
+    parser.add_argument(
+        "--cost-limit",
+        type=float,
+        default=None,
+        help="Maximum estimated cost in USD. Abort if estimated cost exceeds this limit."
+    )
 
     args = parser.parse_args()
 
@@ -444,6 +459,37 @@ if __name__ == "__main__":
     if not logs_base_dir.is_absolute():
         project_root = Path(__file__).resolve().parent.parent
         logs_base_dir = (project_root / logs_base_dir).resolve()
+
+    # --- Preflight validation ---
+    if not args.skip_preflight:
+        logger.info("Running preflight validation...")
+        preflight_report = run_preflight(
+            config_name=config_name,
+            data_dir=args.data_dir,
+            output_dir=args.save_submission_dir,
+            num_attempts=args.num_attempts,
+        )
+        print(preflight_report)
+
+        if not preflight_report.all_passed:
+            logger.error("Preflight validation failed. Use --skip-preflight to bypass (not recommended).")
+            sys.exit(1)
+
+        # Check cost limit if specified
+        if args.cost_limit is not None and preflight_report.cost_estimate:
+            if preflight_report.cost_estimate.estimated_cost > args.cost_limit:
+                logger.error(
+                    f"Estimated cost (${preflight_report.cost_estimate.estimated_cost:.2f}) "
+                    f"exceeds limit (${args.cost_limit:.2f}). Aborting."
+                )
+                sys.exit(1)
+            logger.info(
+                f"Cost check passed: ${preflight_report.cost_estimate.estimated_cost:.2f} "
+                f"<= ${args.cost_limit:.2f} limit"
+            )
+    else:
+        logger.warning("Preflight validation skipped (--skip-preflight flag set)")
+    # --- End preflight validation ---
 
     # Ensure `main` returns an exit code which is then used by sys.exit
     exit_code_from_main = asyncio.run(main(

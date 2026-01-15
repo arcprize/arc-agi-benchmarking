@@ -1,6 +1,5 @@
 from .provider import ProviderAdapter
 import os
-from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
@@ -13,7 +12,6 @@ import httpx
 # Import the base class
 from .openai_base import OpenAIBaseAdapter
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class XAIAdapter(OpenAIBaseAdapter):

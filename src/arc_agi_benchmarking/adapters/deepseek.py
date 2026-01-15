@@ -1,6 +1,5 @@
 from .provider import ProviderAdapter
 import os
-from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
@@ -10,7 +9,6 @@ from typing import Optional, Any, List, Dict
 from .openai_base import OpenAIBaseAdapter
 import re
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class DeepseekAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter

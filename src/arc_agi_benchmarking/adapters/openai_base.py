@@ -1,6 +1,5 @@
 import abc
 from .provider import ProviderAdapter
-from dotenv import load_dotenv
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice as OpenAIChoice
 from openai.types import CompletionUsage
@@ -10,8 +9,6 @@ from typing import Optional, Any, List, Dict
 from time import sleep
 import logging
 import time
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
