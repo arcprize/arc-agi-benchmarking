@@ -245,6 +245,14 @@ def view_submission(task_path: str, submission_path: str) -> None:
             # Handle different submission formats
             if isinstance(pair_attempts, dict) and 'attempts' in pair_attempts:
                 attempts = pair_attempts['attempts']
+            elif isinstance(pair_attempts, dict):
+                # Handle format like {"attempt_1": {...}, "attempt_2": {...}}
+                attempts = []
+                for key in sorted(pair_attempts.keys()):
+                    if key.startswith('attempt_'):
+                        attempts.append(pair_attempts[key])
+                if not attempts:
+                    attempts = [pair_attempts]
             elif isinstance(pair_attempts, list):
                 attempts = pair_attempts
             else:
@@ -298,6 +306,55 @@ def view_directory(task_dir: str, limit: int = 5) -> None:
         print("\n")
 
 
+def view_submissions_dir(
+    submissions_dir: str,
+    task_dir: str,
+    limit: int = 5,
+    show_correct: bool = True,
+    show_incorrect: bool = True
+) -> None:
+    """
+    View multiple submissions from a directory.
+
+    Args:
+        submissions_dir: Path to directory containing submission JSON files
+        task_dir: Path to directory containing ground truth task files
+        limit: Maximum number of submissions to show
+        show_correct: Whether to show correct submissions
+        show_incorrect: Whether to show incorrect submissions
+    """
+    submissions_path = Path(submissions_dir)
+    task_path = Path(task_dir)
+
+    submission_files = sorted(submissions_path.glob("*.json"))
+
+    # Filter out results.json
+    submission_files = [f for f in submission_files if f.name != "results.json"]
+
+    print(f"\n📁 Submissions: {submissions_path}")
+    print(f"📁 Tasks: {task_path}")
+    print(f"Found {len(submission_files)} submissions\n")
+
+    shown = 0
+    for submission_file in submission_files:
+        if shown >= limit:
+            break
+
+        task_id = submission_file.stem
+        task_file = task_path / f"{task_id}.json"
+
+        if not task_file.exists():
+            print(f"⚠️  Task file not found for {task_id}, skipping")
+            continue
+
+        view_submission(str(task_file), str(submission_file))
+        print("\n")
+        shown += 1
+
+    if shown < len(submission_files):
+        print(f"... and {len(submission_files) - shown} more submissions (use --limit to see more)")
+
+
 def print_color_legend() -> None:
     """Print the color legend for reference."""
     print("\n📊 COLOR LEGEND")
@@ -315,13 +372,16 @@ def main():
         epilog="""
 Examples:
   # View a single task
-  python -m arc_agi_benchmarking.utils.viewer --task data/sample/tasks/00576224.json
+  python -m arc_agi_benchmarking.utils.viewer --task data/evaluation/00576224.json
 
-  # View a submission compared to ground truth
-  python -m arc_agi_benchmarking.utils.viewer --task data/tasks/00576224.json --submission submissions/model/00576224.json
+  # View a submission (auto-find task file)
+  python -m arc_agi_benchmarking.utils.viewer --submission submissions/gpt-4o/00576224.json --task-dir data/evaluation
+
+  # View all submissions in a directory
+  python -m arc_agi_benchmarking.utils.viewer --submissions-dir submissions/gpt-4o --task-dir data/evaluation
 
   # View multiple tasks from a directory
-  python -m arc_agi_benchmarking.utils.viewer --dir data/sample/tasks --limit 3
+  python -m arc_agi_benchmarking.utils.viewer --dir data/evaluation --limit 3
 
   # Show color legend
   python -m arc_agi_benchmarking.utils.viewer --legend
@@ -334,9 +394,19 @@ Examples:
         help="Path to a task JSON file"
     )
     parser.add_argument(
+        "--task-dir",
+        type=str,
+        help="Directory containing task files (ground truth)"
+    )
+    parser.add_argument(
         "--submission",
         type=str,
-        help="Path to a submission JSON file (requires --task)"
+        help="Path to a submission JSON file"
+    )
+    parser.add_argument(
+        "--submissions-dir",
+        type=str,
+        help="Directory containing submission files"
     )
     parser.add_argument(
         "--dir",
@@ -347,7 +417,7 @@ Examples:
         "--limit",
         type=int,
         default=5,
-        help="Maximum number of tasks to show when using --dir (default: 5)"
+        help="Maximum number of items to show (default: 5)"
     )
     parser.add_argument(
         "--legend",
@@ -361,8 +431,26 @@ Examples:
         print_color_legend()
         return
 
-    if args.task and args.submission:
-        view_submission(args.task, args.submission)
+    # View all submissions in a directory
+    if args.submissions_dir:
+        if not args.task_dir:
+            print("Error: --submissions-dir requires --task-dir")
+            return
+        view_submissions_dir(args.submissions_dir, args.task_dir, limit=args.limit)
+    # View a single submission (with task-dir to auto-find task file)
+    elif args.submission:
+        if args.task:
+            view_submission(args.task, args.submission)
+        elif args.task_dir:
+            task_id = Path(args.submission).stem
+            task_file = Path(args.task_dir) / f"{task_id}.json"
+            if not task_file.exists():
+                print(f"Error: Task file not found: {task_file}")
+                return
+            view_submission(str(task_file), args.submission)
+        else:
+            print("Error: --submission requires --task or --task-dir")
+            return
     elif args.task:
         view_task(args.task)
     elif args.dir:
