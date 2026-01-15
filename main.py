@@ -13,6 +13,7 @@ from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, Ope
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
+from arc_agi_benchmarking.utils.logging_utils import setup_logging
 from arc_agi_benchmarking.schemas import ARCPair, Attempt
 from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
 from typing import List, Optional
@@ -260,60 +261,25 @@ def main_cli(cli_args: Optional[List[str]] = None):
     # Set metrics enabled status based on CLI arg first
     set_metrics_enabled(args.enable_metrics)
 
-    # # Prepare OpenAI SDK file logging in logs/<config>/<task_id>/openai.jsonl
+    # Prepare log file path for structured JSON logs
     log_dir = Path("logs") / args.config / args.task_id
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "openai.jsonl"
 
-    class _JsonFormatter(logging.Formatter):
-        def format(self, record):
-            payload = {
-                "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
-                "level": record.levelname,
-                "logger": record.name,
-                "message": record.getMessage(),
-            }
-            if record.exc_info:
-                payload["exc_info"] = self.formatException(record.exc_info)
-            return json.dumps(payload)
+    # Configure structured logging (writes to console and file)
+    log_level = "DEBUG" if args.verbose else args.log_level
+    setup_logging(
+        level=log_level,
+        log_file=log_path,
+        quiet_libraries=True,
+    )
 
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
-    file_handler.setFormatter(_JsonFormatter())
+    # Enable OpenAI SDK logging to capture API calls
+    logging.getLogger('openai').setLevel(logging.INFO)
 
-    # Configure logging
     if args.verbose:
-        # Verbose mode: Show DEBUG for our code, WARNING+ for libraries
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        
-        # Set library loggers to WARNING to reduce noise
-        library_loggers = [
-            'httpx', 'httpcore', 'urllib3', 'requests', 
-            'anthropic', 'google', 'pydantic', 'transformers'
-        ]
-        for lib_logger in library_loggers:
-            logging.getLogger(lib_logger).setLevel(logging.WARNING)
-        
-        # Keep our application loggers at DEBUG
-        logging.getLogger('arc_agi_benchmarking').setLevel(logging.DEBUG)
-        logging.getLogger('__main__').setLevel(logging.DEBUG)
-        
-        logger.info("Verbose mode enabled - showing debug output for arc_agi_benchmarking only")
-    else:
-        # Normal mode: Use the specified log level
-        logging.basicConfig(
-            level=getattr(logging, args.log_level.upper()),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-
-    # Attach file handler for OpenAI SDK and app logs, and ensure OpenAI logger is enabled
-    root_logger = logging.getLogger()
-    root_logger.addHandler(file_handler)
-    openai_logger = logging.getLogger('openai')
-    openai_logger.setLevel(logging.INFO)
-    logger.info(f"OpenAI SDK logs will be written to {log_path}")
+        logger.info("Verbose mode enabled - showing debug output")
+    logger.info(f"Structured logs will be written to {log_path}")
 
     arc_solver = ARCTester(
         config=args.config,
