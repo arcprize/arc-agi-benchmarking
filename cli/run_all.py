@@ -24,6 +24,7 @@ from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provi
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
+from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
@@ -160,23 +161,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         config_token = LOG_CONFIG_CTX.set(config_name)
         task_token = LOG_TASK_CTX.set(task_id)
 
-        class _JsonFormatter(logging.Formatter):
-            def format(self, record):
-                payload = {
-                    "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
-                    "level": record.levelname,
-                    "logger": record.name,
-                    "message": record.getMessage(),
-                }
-                if record.exc_info:
-                    payload["exc_info"] = self.formatException(record.exc_info)
-                # Include context for easier grepping
-                payload["config"] = config_name
-                payload["task_id"] = task_id
-                return json.dumps(payload)
-
         file_handler = logging.FileHandler(log_path, encoding="utf-8")
-        file_handler.setFormatter(_JsonFormatter())
+        file_handler.setFormatter(StructuredFormatter())
         file_handler.addFilter(_TaskFilter())
         logging.getLogger().addHandler(file_handler)
         logging.getLogger("openai").setLevel(logging.INFO)
@@ -416,21 +402,8 @@ if __name__ == "__main__":
     # Set metrics enabled status based on CLI arg
     set_metrics_enabled(args.enable_metrics)
 
-    # Configure logging for the entire application based on --log-level
-    if args.log_level == "NONE":
-        log_level_to_set = logging.CRITICAL + 1 
-        logging.basicConfig(
-            level=log_level_to_set,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[logging.StreamHandler(sys.stdout)] 
-        )
-    else:
-        log_level_to_set = getattr(logging, args.log_level.upper())
-        logging.basicConfig(
-            level=log_level_to_set,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[logging.StreamHandler(sys.stdout)]
-        )
+    # Configure structured logging for the entire application
+    setup_logging(level=args.log_level, quiet_libraries=True)
 
     config_name = args.config.strip() if args.config else DEFAULT_MODEL_CONFIG
     if not config_name:

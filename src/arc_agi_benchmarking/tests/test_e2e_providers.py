@@ -141,10 +141,10 @@ from main import main_cli # Import after sys.path modification
 @patch('main.ARCTester.generate_task_solution')
 @patch('main.ARCTester.init_provider')
 @patch('main.utils.read_models_config') # Patched at the source where it's used by main.py
-@patch('main.logging.basicConfig') # To suppress logging output during tests
+@patch('main.setup_logging') # To suppress logging output during tests
 @patch('main.set_metrics_enabled') # To avoid side effects with metrics
 def test_main_cli_execution_and_arctester_mocking(mock_set_metrics_enabled,
-                                           mock_logging_basic_config,
+                                           mock_setup_logging,
                                            mock_read_models_config,
                                            mock_init_provider,
                                            mock_generate_task_solution):
@@ -202,6 +202,6 @@ def test_main_cli_execution_and_arctester_mocking(mock_set_metrics_enabled,
 
     mock_set_metrics_enabled.assert_called_once_with(False) # Default behavior
     print(f"mock_set_metrics_enabled called with: {mock_set_metrics_enabled.call_args}")
-    
-    mock_logging_basic_config.assert_called_once()
+
+    mock_setup_logging.assert_called_once()
     print("✅ test_main_cli_execution_and_arctester_mocking completed successfully.")
