@@ -1,6 +1,5 @@
 from .provider import ProviderAdapter
 import os
-from dotenv import load_dotenv
 import json
 from openai import OpenAI
 from datetime import datetime, timezone
@@ -12,7 +11,6 @@ import re
 # Import the base class we will now inherit from
 from .openai_base import OpenAIBaseAdapter
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class FireworksAdapter(OpenAIBaseAdapter): # Inherit from OpenAIBaseAdapter

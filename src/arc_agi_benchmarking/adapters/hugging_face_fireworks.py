@@ -1,6 +1,5 @@
 from .provider import ProviderAdapter
 import os
-from dotenv import load_dotenv
 import json
 from huggingface_hub import InferenceClient
 from datetime import datetime
@@ -8,7 +7,6 @@ from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice,
 import logging
 from typing import Optional
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 class HuggingFaceFireworksAdapter(ProviderAdapter):
