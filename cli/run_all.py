@@ -29,6 +29,7 @@ from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provi
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
+from arc_agi_benchmarking.utils.progress import ProgressTracker
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
@@ -225,7 +226,8 @@ async def main(task_list_file: Optional[str],
                data_dir: str, save_submission_dir: str,
                overwrite_submission: bool, print_submission: bool,
                num_attempts: int, retry_attempts: int,
-               logs_base_dir: Path) -> int: # Added return type hint
+               logs_base_dir: Path,
+               show_progress: bool = True) -> int:
     # Basic logging setup is now done in if __name__ == "__main__"
     
     start_time = time.perf_counter()
@@ -307,7 +309,25 @@ async def main(task_list_file: Optional[str],
         return 1 # Return an error code
 
     logger.info(f"Executing {len(async_tasks_to_execute)} tasks concurrently...")
-    results = await asyncio.gather(*async_tasks_to_execute, return_exceptions=True)
+
+    # Initialize progress tracker
+    tracker = ProgressTracker(
+        total_tasks=len(async_tasks_to_execute),
+        show_progress=show_progress,
+    )
+
+    # Execute tasks and track progress as they complete
+    results = []
+    for coro in asyncio.as_completed(async_tasks_to_execute):
+        try:
+            result = await coro
+            results.append(result)
+            tracker.update(success=(result is True))
+        except Exception as e:
+            results.append(e)
+            tracker.update(success=False)
+
+    tracker.finish()
 
     successful_runs = sum(1 for r in results if r is True)
     orchestrator_level_failures = sum(1 for r in results if r is False or isinstance(r, Exception))
@@ -328,12 +348,16 @@ async def main(task_list_file: Optional[str],
     
     logger.info("Note: Individual task success/failure is logged by ARCTester within its own logger (main.py's logger).")
     logger.info("Orchestrator failure indicates an issue with running the ARCTester task itself or an unhandled exception in the wrapper.")
-    
+
+    # Print final summary
+    if show_progress:
+        print(tracker.get_summary())
+
     end_time = time.perf_counter()
     total_duration = end_time - start_time
     logger.info("--- Orchestrator Timing ---")
     logger.info(f"Total execution time for cli/run_all.py: {total_duration:.2f} seconds")
-    
+
     return exit_code
 
 if __name__ == "__main__":
@@ -415,8 +439,23 @@ if __name__ == "__main__":
         default=None,
         help="Maximum estimated cost in USD. Abort if estimated cost exceeds this limit."
     )
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        default=True,
+        help="Show progress bar with ETA (default: enabled)."
+    )
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable progress bar."
+    )
 
     args = parser.parse_args()
+
+    # Handle --no-progress flag
+    if args.no_progress:
+        args.progress = False
 
     # Set metrics enabled status based on CLI arg
     set_metrics_enabled(args.enable_metrics)
@@ -506,7 +545,8 @@ if __name__ == "__main__":
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
         retry_attempts=args.retry_attempts,
-        logs_base_dir=logs_base_dir
+        logs_base_dir=logs_base_dir,
+        show_progress=args.progress,
     ))
     
     sys.exit(exit_code_from_main) 
