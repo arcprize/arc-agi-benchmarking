@@ -181,3 +181,4 @@ analyze_submission_times.py
 .claude
 /logs/*
 /test_logs/*
+.codex_*
