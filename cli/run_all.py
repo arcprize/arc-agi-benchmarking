@@ -13,16 +13,11 @@ import logging
 from dotenv import load_dotenv
 load_dotenv()
 
-# Add the project root directory and the src directory to sys.path
-# This allows cli/run_all.py to import 'main' and 'src' from the project root
+# Add project root to sys.path to allow importing main.py (which contains ARCTester)
+# Note: arc_agi_benchmarking package imports work via pip install -e .
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-src_dir = os.path.join(project_root, 'src')
-
 if project_root not in sys.path:
-    sys.path.insert(0, project_root) # For importing main.py
-
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir) # For importing arc_agi_benchmarking from src
+    sys.path.insert(0, project_root)
 
 from main import ARCTester
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits
