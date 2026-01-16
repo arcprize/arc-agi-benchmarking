@@ -807,6 +807,31 @@ models:
 #### Anthropic ####
 ###################
 
+  - name: "claude-opus-4-5-20251101-thinking-64k-azure"
+    model_name: "claude-opus-4-5"
+    provider: "azure"
+    max_tokens: 64000
+    stream: true
+    thinking:
+      type: "enabled"
+      budget_tokens: 63999
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
+  - name: "claude-opus-4-5-20251101-thinking-none-azure"
+    model_name: "claude-opus-4-5"
+    provider: "azure"
+    max_tokens: 64000
+    stream: true
+    thinking:
+      type: "disabled"
+    pricing:
+      date: "2025-11-20"
+      input: 5.00
+      output: 25.00
+
   - name: "claude-opus-4-5-20251101-thinking-64k"
     model_name: "claude-opus-4-5-20251101"
     provider: "anthropic"

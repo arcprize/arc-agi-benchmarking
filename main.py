@@ -1,5 +1,6 @@
 import os
 import json
+from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, AzureAdapter, ClaudeagentsdkAdapter
 from pathlib import Path
 from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, ClaudeagentsdkAdapter, CodexcliAdapter
 from dotenv import load_dotenv
@@ -27,6 +28,7 @@ PROVIDER_ADAPTERS = {
     "openrouter": OpenRouterAdapter,
     "xai": XAIAdapter,
     "random": RandomAdapter,
+    "azure": AzureAdapter,  
     "claudeagentsdk": ClaudeagentsdkAdapter,
     "codexcli": CodexcliAdapter,
 }
