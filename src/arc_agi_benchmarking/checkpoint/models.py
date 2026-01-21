@@ -1,10 +1,15 @@
 """Data models for checkpointing."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Any
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time as timezone-aware datetime."""
+    return datetime.now(timezone.utc)
 
 
 class TaskStatus(str, Enum):
@@ -28,7 +33,7 @@ class AttemptResult:
     tokens_output: int = 0
     duration_seconds: float = 0.0
     error: str | None = None
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
 
     def to_dict(self) -> dict:
         return {
@@ -68,8 +73,8 @@ class TaskCheckpoint:
     total_cost_usd: Decimal = Decimal("0")
     total_tokens_input: int = 0
     total_tokens_output: int = 0
-    started_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
 
     def to_dict(self) -> dict:
         return {
@@ -162,8 +167,8 @@ class BatchProgress:
     total_cost_usd: Decimal = Decimal("0")
     total_tokens_input: int = 0
     total_tokens_output: int = 0
-    started_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=_utc_now)
+    updated_at: datetime = field(default_factory=_utc_now)
 
     @property
     def pending_count(self) -> int:

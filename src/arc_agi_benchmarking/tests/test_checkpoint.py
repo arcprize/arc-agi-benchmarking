@@ -1,6 +1,6 @@
 """Tests for checkpointing and progress tracking."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -231,6 +231,40 @@ class TestBatchProgressManager:
         assert task.status == TaskStatus.FAILED
         assert task.error == "API error"
 
+    def test_mark_failed_accumulates_costs(self, manager: BatchProgressManager):
+        manager.initialize_tasks(["task_1", "task_2"])
+        manager.claim_task("task_1")
+        manager.mark_completed(
+            "task_1",
+            cost_usd=Decimal("0.05"),
+            tokens_input=100,
+            tokens_output=50,
+        )
+        manager.claim_task("task_2")
+        manager.mark_failed(
+            "task_2",
+            error="API error",
+            cost_usd=Decimal("0.03"),
+            tokens_input=80,
+            tokens_output=20,
+        )
+
+        assert manager.progress.total_cost_usd == Decimal("0.08")
+        assert manager.progress.total_tokens_input == 180
+        assert manager.progress.total_tokens_output == 70
+        assert manager.progress.tasks["task_2"].cost_usd == Decimal("0.03")
+
+    def test_run_id_mismatch_starts_fresh(self, storage: LocalStorageBackend):
+        manager1 = BatchProgressManager(storage, run_id="run_1")
+        manager1.initialize_tasks(["task_1", "task_2"])
+        manager1.claim_task("task_1")
+        manager1.mark_completed("task_1")
+
+        manager2 = BatchProgressManager(storage, run_id="run_2")
+
+        assert manager2.progress.run_id == "run_2"
+        assert manager2.progress.total_count == 0
+
     def test_is_complete(self, manager: BatchProgressManager):
         manager.initialize_tasks(["task_1", "task_2"])
 
@@ -261,7 +295,7 @@ class TestBatchProgressManager:
         manager.initialize_tasks(["task_1"])
         manager.claim_task("task_1")
 
-        manager.progress.tasks["task_1"].started_at = datetime.utcnow() - timedelta(
+        manager.progress.tasks["task_1"].started_at = datetime.now(timezone.utc) - timedelta(
             hours=2
         )
         manager._save()

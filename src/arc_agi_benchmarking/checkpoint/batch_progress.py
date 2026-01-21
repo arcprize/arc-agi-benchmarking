@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from arc_agi_benchmarking.checkpoint.models import (
@@ -45,13 +45,20 @@ class BatchProgressManager:
         data = self.storage.read_text(self.progress_key)
         if data:
             try:
-                return BatchProgress.from_dict(json.loads(data))
+                progress = BatchProgress.from_dict(json.loads(data))
+                if progress.run_id != self.run_id:
+                    logger.warning(
+                        f"Run ID mismatch: expected {self.run_id}, "
+                        f"found {progress.run_id}. Starting fresh."
+                    )
+                    return BatchProgress(run_id=self.run_id)
+                return progress
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Failed to load progress, starting fresh: {e}")
         return BatchProgress(run_id=self.run_id)
 
     def _save(self) -> None:
-        self.progress.updated_at = datetime.utcnow()
+        self.progress.updated_at = datetime.now(timezone.utc)
         self.storage.write_text(
             self.progress_key,
             json.dumps(self.progress.to_dict(), indent=2),
@@ -85,7 +92,7 @@ class BatchProgressManager:
 
         task.status = TaskStatus.IN_PROGRESS
         task.worker_id = self._worker_id
-        task.started_at = datetime.utcnow()
+        task.started_at = datetime.now(timezone.utc)
         self._save()
         return True
 
@@ -100,11 +107,15 @@ class BatchProgressManager:
         """Claim the next available pending task.
 
         Returns the task ID if successful, None if no tasks available.
+        Uses a retry loop to handle race conditions where another worker
+        claims a task between get_next_pending_task() and claim_task().
         """
-        task_id = self.get_next_pending_task()
-        if task_id and self.claim_task(task_id):
-            return task_id
-        return None
+        while True:
+            task_id = self.get_next_pending_task()
+            if task_id is None:
+                return None
+            if self.claim_task(task_id):
+                return task_id
 
     def mark_completed(
         self,
@@ -119,7 +130,7 @@ class BatchProgressManager:
             return
 
         task.status = TaskStatus.COMPLETED
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(timezone.utc)
         task.cost_usd = cost_usd
 
         self.progress.total_cost_usd += cost_usd
@@ -127,15 +138,27 @@ class BatchProgressManager:
         self.progress.total_tokens_output += tokens_output
         self._save()
 
-    def mark_failed(self, task_id: str, error: str) -> None:
-        """Mark a task as failed."""
+    def mark_failed(
+        self,
+        task_id: str,
+        error: str,
+        cost_usd: Decimal = Decimal("0"),
+        tokens_input: int = 0,
+        tokens_output: int = 0,
+    ) -> None:
+        """Mark a task as failed, accumulating any costs incurred."""
         task = self.progress.tasks.get(task_id)
         if not task:
             return
 
         task.status = TaskStatus.FAILED
         task.error = error
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(timezone.utc)
+        task.cost_usd = cost_usd
+
+        self.progress.total_cost_usd += cost_usd
+        self.progress.total_tokens_input += tokens_input
+        self.progress.total_tokens_output += tokens_output
         self._save()
 
     def update_task_progress(
@@ -158,7 +181,7 @@ class BatchProgressManager:
 
         Returns the number of tasks reset.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         reset_count = 0
 
         for task in self.progress.tasks.values():

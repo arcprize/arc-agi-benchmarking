@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -58,7 +58,7 @@ class TaskCheckpointManager:
         return TaskCheckpoint(task_id=self.task_id)
 
     def _save(self) -> None:
-        self.checkpoint.updated_at = datetime.utcnow()
+        self.checkpoint.updated_at = datetime.now(timezone.utc)
         data = json.dumps(self.checkpoint.to_dict(), indent=2)
         self.storage.write_text(self.checkpoint_key, data)
 

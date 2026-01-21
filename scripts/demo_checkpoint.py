@@ -99,7 +99,13 @@ def run_batch(storage: LocalStorageBackend, task_ids: list[str], interrupt_after
                 task_checkpoint.delete_checkpoint()
                 print(f"  ✓ Task {task_id} completed")
             else:
-                batch_manager.mark_failed(task_id, "All attempts exhausted")
+                batch_manager.mark_failed(
+                    task_id,
+                    "All attempts exhausted",
+                    cost_usd=task_checkpoint.checkpoint.total_cost_usd,
+                    tokens_input=task_checkpoint.checkpoint.total_tokens_input,
+                    tokens_output=task_checkpoint.checkpoint.total_tokens_output,
+                )
                 task_checkpoint.delete_checkpoint()
                 print(f"  ✗ Task {task_id} failed (all attempts exhausted)")
 
