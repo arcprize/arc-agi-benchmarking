@@ -26,13 +26,11 @@ def simulate_task(task_checkpoint: TaskCheckpointManager, num_test_pairs: int = 
         while True:
             attempt_idx = task_checkpoint.get_next_attempt_index(test_pair_idx, max_attempts)
             if attempt_idx is None:
-                break  # All attempts done for this test pair
+                break
 
-            # Simulate work
             print(f"    Running test pair {test_pair_idx}, attempt {attempt_idx}...")
-            time.sleep(0.1)  # Simulate API call
+            time.sleep(0.1)
 
-            # Simulate occasional failure (or forced failure)
             if fail_task or random.random() < 0.3:
                 print(f"    ❌ Simulated failure!")
                 task_checkpoint.record_attempt(
@@ -53,7 +51,7 @@ def simulate_task(task_checkpoint: TaskCheckpointManager, num_test_pairs: int = 
                     tokens_output=50,
                 )
                 pair_succeeded = True
-                break  # Success, move to next test pair
+                break
 
         if not pair_succeeded:
             all_succeeded = False
@@ -79,8 +77,6 @@ def run_batch(storage: LocalStorageBackend, task_ids: list[str], interrupt_after
         print(f"\n▶ Processing task: {task_id}")
 
         task_checkpoint = TaskCheckpointManager(storage, task_id)
-
-        # Check if resuming
         existing = len(task_checkpoint.get_completed_attempts())
         if existing > 0:
             print(f"  Resuming from checkpoint ({existing} attempts already done)")
@@ -131,26 +127,21 @@ def main():
         storage = LocalStorageBackend(Path(tmpdir))
         print(f"Using temp storage: {tmpdir}")
 
-        # First run - force task_002 to fail
         print("\n" + "="*60)
         print("RUN 1: Processing tasks (task_002 will fail)")
         print("="*60)
         batch_manager = run_batch(storage, task_ids, force_fail_task="task_002")
 
-        # Show failed task
         print(f"\nFailed tasks: {batch_manager.progress.failed_count}")
 
-        # Retry failed tasks
         print("\n" + "="*60)
         print("RUN 2: Retrying failed tasks")
         print("="*60)
         reset_count = batch_manager.retry_failed_tasks()
         print(f"Reset {reset_count} failed task(s) back to pending")
 
-        # Run again - should only process the previously failed task
         run_batch(storage, task_ids)
 
-        # Third run - should be a no-op
         print("\n" + "="*60)
         print("RUN 3: Running again (should be no-op)")
         print("="*60)
