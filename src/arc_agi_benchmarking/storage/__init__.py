@@ -1,7 +1,7 @@
 """Storage abstraction layer for checkpoints and submissions."""
 
 from arc_agi_benchmarking.storage.base import StorageBackend
-from arc_agi_benchmarking.storage.local import LocalStorageBackend
+from arc_agi_benchmarking.storage.filesystem import LocalStorageBackend
 
 __all__ = [
     "StorageBackend",

@@ -11,7 +11,7 @@ from arc_agi_benchmarking.storage.base import (
     StorageReadError,
     StorageWriteError,
 )
-from arc_agi_benchmarking.storage.local import LocalStorageBackend
+from arc_agi_benchmarking.storage.filesystem import LocalStorageBackend
 
 
 class TestLocalStorageBackend:
