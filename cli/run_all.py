@@ -173,14 +173,14 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
-                                  progress_manager: Optional[BatchProgressManager] = None) -> bool:
+                                  progress_manager: Optional[BatchProgressManager] = None) -> Optional[bool]:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     # Claim the task for this worker (if using checkpointing)
     if progress_manager is not None:
         if not progress_manager.claim_task(task_id):
             logger.debug(f"[Orchestrator] Task {task_id} already claimed or completed, skipping")
-            return True  # Not a failure, just already handled
+            return None  # Skipped, not success or failure
 
     try:
         circuit_breaker.raise_if_open()
@@ -417,6 +417,7 @@ async def main(task_list_file: Optional[str],
     results = await asyncio.gather(*async_tasks_to_execute, return_exceptions=True)
 
     successful_runs = sum(1 for r in results if r is True)
+    skipped_runs = sum(1 for r in results if r is None)
     orchestrator_level_failures = sum(1 for r in results if r is False or isinstance(r, Exception))
 
     logger.info("--- Orchestrator Summary ---")
@@ -558,12 +559,6 @@ if __name__ == "__main__":
         help="Number of failures before circuit breaker opens. Overrides provider-specific thresholds."
     )
     parser.add_argument(
-        "--resume",
-        action="store_true",
-        default=True,
-        help="Resume from checkpoint if available (default: enabled)."
-    )
-    parser.add_argument(
         "--no-resume",
         action="store_true",
         help="Disable resume - run all tasks even if some are already completed."
@@ -571,8 +566,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Handle --no-resume flag
-    resume_enabled = args.resume and not args.no_resume
+    resume_enabled = not args.no_resume
 
     # Set metrics enabled status based on CLI arg
     set_metrics_enabled(args.enable_metrics)
