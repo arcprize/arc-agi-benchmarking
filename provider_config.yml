@@ -1,85 +1,49 @@
-# Provider-specific API rate limits and timeout configuration
+# Provider-specific API rate limits
+# Used by the asyncio orchestrator (cli/run_all.py) to configure AsyncRequestRateLimiter.
+# 'rate' is the number of allowed requests per 'period' seconds.
 
 openai:
   rate: 20
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  period: 60    # per 60 seconds
 
 anthropic:
-  rate: 20
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 600
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 20     # 400 requests
+  period: 60    # per 60 seconds
 
+# Provider key for Gemini models, should match 'provider' field in models.yml
 gemini:
-  rate: 30
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 30     # 300 requests (Updated from 5)
+  period: 60    # per 60 seconds
 
 deepseek:
-  rate: 400
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
 
+# Assuming 'fireworks' is a general provider key for models hosted on Fireworks AI
+# (e.g., QwQ-32B-Fireworks, o3-mini)
 fireworks:
-  rate: 400
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
 
 grok:
-  rate: 400
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
 
 xai:
-  rate: 40
-  period: 60
-  request_timeout: 3600
-  reasoning_timeout: 3600
-  circuit_breaker_threshold: 3
-  circuit_breaker_recovery: 120
+  rate: 40     # 10 requests
+  period: 60    # per 1 second
 
 openrouter:
-  rate: 400
-  period: 60
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 400     # 400 requests
+  period: 60    # per 60 seconds
 
 claudeagentsdk:
-  rate: 15
-  period: 60
-  request_timeout: 600
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 15     # 20 requests
+  period: 60    # per 60 seconds
 
 codexcli:
-  rate: 10
-  period: 60
-  request_timeout: 600
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+  rate: 10     # 10 requests
+  period: 60    # per 60 seconds
 
-defaults:
-  request_timeout: 300
-  reasoning_timeout: 900
-  circuit_breaker_threshold: 5
-  circuit_breaker_recovery: 60
+# Add other provider keys (matching models.yml 'provider' field) and their limits as needed.
+# Ensure these provider keys exactly match what's in your models.yml for each model config.

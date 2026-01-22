@@ -89,7 +89,6 @@ else:
 # Default values
 DEFAULT_RATE_LIMIT_RATE = 400
 DEFAULT_RATE_LIMIT_PERIOD = 60
-DEFAULT_TASK_TIMEOUT = 1800  # 30 minutes default task timeout
 DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 5
 DEFAULT_CIRCUIT_BREAKER_RECOVERY = 60
 
@@ -160,15 +159,14 @@ def get_or_create_circuit_breaker(
     return PROVIDER_CIRCUIT_BREAKERS[provider_name]
 
 
-def get_task_timeout(provider_name: str, all_provider_limits: Dict, max_task_timeout: Optional[float] = None) -> float:
+def get_task_timeout(provider_name: str, all_provider_limits: Dict, max_task_timeout: Optional[float] = None) -> Optional[float]:
     if max_task_timeout is not None and max_task_timeout > 0:
         return max_task_timeout
-    timeout_config = get_provider_timeout_config(provider_name, all_provider_limits)
-    return timeout_config.get('reasoning_timeout', DEFAULT_TASK_TIMEOUT)
+    return None
 
 async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter,
                                   circuit_breaker: CircuitBreaker,
-                                  task_timeout_seconds: float,
+                                  task_timeout_seconds: Optional[float],
                                   data_dir: str, save_submission_dir: str,
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
@@ -235,12 +233,18 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
 
     try:
         async with limiter:
-            logger.info(f"[Orchestrator] Rate limiter acquired for {config_name}. Executing {task_id} (timeout={task_timeout_seconds}s)")
-            await task_timeout(
-                _synchronous_task_execution_attempt_with_tenacity,
-                task_timeout_seconds,
-                f"Task {task_id} ({config_name})"
-            )
+            timeout_str = f"{task_timeout_seconds}s" if task_timeout_seconds else "none"
+            logger.info(f"[Orchestrator] Rate limiter acquired for {config_name}. Executing {task_id} (timeout={timeout_str})")
+            if task_timeout_seconds:
+                await task_timeout(
+                    _synchronous_task_execution_attempt_with_tenacity,
+                    task_timeout_seconds,
+                    f"Task {task_id} ({config_name})"
+                )
+            else:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, _synchronous_task_execution_attempt_with_tenacity
+                )
 
         circuit_breaker.record_success()
         logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")
