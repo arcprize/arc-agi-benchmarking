@@ -59,7 +59,6 @@ else:
         timeout_handle = loop.call_later(seconds, task.cancel)
         try:
             yield
-            timeout_handle.cancel()
         except asyncio.CancelledError:
             elapsed = time.monotonic() - start_time
             if elapsed >= seconds:
@@ -69,6 +68,8 @@ else:
                     timeout=seconds,
                 )
             raise
+        finally:
+            timeout_handle.cancel()
 
 
 @contextmanager
