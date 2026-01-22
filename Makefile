@@ -51,3 +51,4 @@ clean:
 	rm -rf logs/random-baseline
 	find . -type f -name "*.pyc" -delete
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".checkpoints" -exec rm -rf {} + 2>/dev/null || true
