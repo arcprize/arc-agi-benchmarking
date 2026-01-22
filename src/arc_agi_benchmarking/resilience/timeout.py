@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import sys
 import time
 from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
@@ -10,6 +11,9 @@ from typing import Any, Callable, Optional, TypeVar
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
+
+# Python 3.11+ has asyncio.timeout, older versions need a polyfill
+_HAS_ASYNCIO_TIMEOUT = sys.version_info >= (3, 11)
 
 
 class TaskTimeoutError(Exception):
@@ -21,24 +25,50 @@ class TaskTimeoutError(Exception):
         self.timeout = timeout
 
 
-@asynccontextmanager
-async def request_timeout(seconds: float, operation: str = "request"):
-    """Async context manager for request timeouts."""
-    if seconds <= 0:
-        yield
-        return
-
-    start_time = time.monotonic()
-    try:
-        async with asyncio.timeout(seconds):
+if _HAS_ASYNCIO_TIMEOUT:
+    @asynccontextmanager
+    async def request_timeout(seconds: float, operation: str = "request"):
+        """Async context manager for request timeouts."""
+        if seconds <= 0:
             yield
-    except asyncio.TimeoutError:
-        elapsed = time.monotonic() - start_time
-        raise TaskTimeoutError(
-            f"{operation} timed out after {elapsed:.2f}s (limit: {seconds}s)",
-            elapsed=elapsed,
-            timeout=seconds,
-        )
+            return
+
+        start_time = time.monotonic()
+        try:
+            async with asyncio.timeout(seconds):
+                yield
+        except asyncio.TimeoutError:
+            elapsed = time.monotonic() - start_time
+            raise TaskTimeoutError(
+                f"{operation} timed out after {elapsed:.2f}s (limit: {seconds}s)",
+                elapsed=elapsed,
+                timeout=seconds,
+            )
+else:
+    @asynccontextmanager
+    async def request_timeout(seconds: float, operation: str = "request"):
+        """Async context manager for request timeouts (Python 3.10 compatible)."""
+        if seconds <= 0:
+            yield
+            return
+
+        start_time = time.monotonic()
+        task = asyncio.current_task()
+        loop = asyncio.get_event_loop()
+
+        timeout_handle = loop.call_later(seconds, task.cancel)
+        try:
+            yield
+            timeout_handle.cancel()
+        except asyncio.CancelledError:
+            elapsed = time.monotonic() - start_time
+            if elapsed >= seconds:
+                raise TaskTimeoutError(
+                    f"{operation} timed out after {elapsed:.2f}s (limit: {seconds}s)",
+                    elapsed=elapsed,
+                    timeout=seconds,
+                )
+            raise
 
 
 @contextmanager
@@ -73,11 +103,11 @@ async def task_timeout(
 
     start_time = time.monotonic()
     try:
-        async with asyncio.timeout(timeout_seconds):
-            if asyncio.iscoroutinefunction(coro_or_func):
-                return await coro_or_func(*args, **kwargs)
-            else:
-                return await asyncio.to_thread(coro_or_func, *args, **kwargs)
+        if asyncio.iscoroutinefunction(coro_or_func):
+            coro = coro_or_func(*args, **kwargs)
+        else:
+            coro = asyncio.to_thread(coro_or_func, *args, **kwargs)
+        return await asyncio.wait_for(coro, timeout=timeout_seconds)
     except asyncio.TimeoutError:
         elapsed = time.monotonic() - start_time
         raise TaskTimeoutError(
