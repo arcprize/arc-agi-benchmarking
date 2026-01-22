@@ -32,6 +32,8 @@ from arc_agi_benchmarking.resilience import (
     task_timeout,
     get_circuit_breaker,
 )
+from arc_agi_benchmarking.checkpoint import BatchProgressManager, TaskStatus
+from arc_agi_benchmarking.storage import LocalStorageBackend
 
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
@@ -170,13 +172,22 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   data_dir: str, save_submission_dir: str,
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
-                                  logs_base_dir: Path) -> bool: # removed print_logs
+                                  logs_base_dir: Path,
+                                  progress_manager: Optional[BatchProgressManager] = None) -> bool:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
+
+    # Claim the task for this worker (if using checkpointing)
+    if progress_manager is not None:
+        if not progress_manager.claim_task(task_id):
+            logger.debug(f"[Orchestrator] Task {task_id} already claimed or completed, skipping")
+            return True  # Not a failure, just already handled
 
     try:
         circuit_breaker.raise_if_open()
     except CircuitBreakerOpenError as e:
         logger.warning(f"[Orchestrator] Circuit breaker OPEN for {config_name}, skipping {task_id}. Recovery in {e.recovery_time:.1f}s")
+        if progress_manager is not None:
+            progress_manager.mark_failed(task_id, f"Circuit breaker open: {e}")
         return False
 
     @retry(
@@ -248,11 +259,15 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
 
         circuit_breaker.record_success()
         logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")
+        if progress_manager is not None:
+            progress_manager.mark_completed(task_id)
         return True
 
     except TaskTimeoutError as e:
         circuit_breaker.record_failure(e)
         logger.error(f"[Orchestrator] Task {task_id} ({config_name}) timed out after {e.elapsed:.2f}s (limit: {e.timeout}s)")
+        if progress_manager is not None:
+            progress_manager.mark_failed(task_id, f"Timeout after {e.elapsed:.2f}s")
         return False
 
     except Exception as e:
@@ -261,6 +276,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             logger.error(f"[Orchestrator] Failed after retries: {config_name} / {task_id}. {type(e).__name__}: {e}", exc_info=True)
         else:
             logger.error(f"[Orchestrator] Failed (non-retryable): {config_name} / {task_id}. {type(e).__name__}: {e}", exc_info=True)
+        if progress_manager is not None:
+            progress_manager.mark_failed(task_id, f"{type(e).__name__}: {e}")
         return False
 
 async def main(task_list_file: Optional[str],
@@ -270,7 +287,8 @@ async def main(task_list_file: Optional[str],
                num_attempts: int, retry_attempts: int,
                logs_base_dir: Path,
                max_task_timeout: Optional[float] = None,
-               circuit_breaker_threshold: Optional[int] = None) -> int:
+               circuit_breaker_threshold: Optional[int] = None,
+               resume: bool = True) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -311,14 +329,52 @@ async def main(task_list_file: Optional[str],
         logger.error(f"Error loading tasks: {e}", exc_info=True)
         return 1 # Return an error code
 
+    # --- Checkpointing Setup ---
+    checkpoint_dir = Path(save_submission_dir) / config_to_test / ".checkpoints"
+    storage = LocalStorageBackend(checkpoint_dir)
+    progress_manager = BatchProgressManager(
+        storage=storage,
+        run_id=config_to_test,
+    )
+
+    # Initialize all tasks (idempotent - only adds tasks not already tracked)
+    progress_manager.initialize_tasks(task_ids, attempts_per_task=num_attempts)
+
+    # Reset any stale in-progress tasks (from crashed workers)
+    stale_count = progress_manager.reset_stale_tasks(max_age_seconds=3600)
+    if stale_count > 0:
+        logger.info(f"Reset {stale_count} stale in-progress task(s)")
+
+    # Determine which tasks to run
+    if resume:
+        # Only run pending tasks
+        tasks_to_run = [
+            task_id for task_id in task_ids
+            if progress_manager.progress.tasks.get(task_id) and
+               progress_manager.progress.tasks[task_id].status == TaskStatus.PENDING
+        ]
+        completed_count = progress_manager.progress.completed_count
+        failed_count = progress_manager.progress.failed_count
+        if completed_count > 0 or failed_count > 0:
+            logger.info(
+                f"Resuming: {completed_count} completed, {failed_count} failed, "
+                f"{len(tasks_to_run)} remaining"
+            )
+    else:
+        tasks_to_run = task_ids
+        logger.info("Resume disabled - running all tasks")
+
     all_jobs_to_run: List[Tuple[str, str]] = []
-    for task_id in task_ids:
+    for task_id in tasks_to_run:
         all_jobs_to_run.append((config_to_test, task_id))
-    
+
     if not all_jobs_to_run:
+        if resume and progress_manager.is_complete():
+            logger.info("All tasks already completed. Use --no-resume to re-run.")
+            return 0
         logger.warning("No jobs to run (check config_to_test and task list). Exiting.")
-        return 1 # Return an error code
-    
+        return 1
+
     logger.info(f"Total jobs to process: {len(all_jobs_to_run)}")
 
     try:
@@ -345,7 +401,8 @@ async def main(task_list_file: Optional[str],
                 data_dir, save_submission_dir,
                 overwrite_submission, print_submission,
                 num_attempts, retry_attempts,
-                logs_base_dir
+                logs_base_dir,
+                progress_manager,
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
@@ -375,6 +432,17 @@ async def main(task_list_file: Optional[str],
             elif res is False: # Wrapper reported failure
                 logger.warning(f"  - Failure reported by wrapper for {original_job_config}/{original_job_task_id} (check ARCTester logs for this task/config)")
         exit_code = 1 # Indicate failure
+
+    # Log checkpoint progress summary
+    logger.info("--- Checkpoint Progress Summary ---")
+    summary = progress_manager.get_summary()
+    logger.info(
+        f"  Run: {summary['run_id']} | "
+        f"Total: {summary['total']} | "
+        f"Completed: {summary['completed']} | "
+        f"Failed: {summary['failed']} | "
+        f"Pending: {summary['pending']}"
+    )
 
     # Log circuit breaker statistics
     if PROVIDER_CIRCUIT_BREAKERS:
@@ -489,8 +557,22 @@ if __name__ == "__main__":
         default=None,
         help="Number of failures before circuit breaker opens. Overrides provider-specific thresholds."
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        default=True,
+        help="Resume from checkpoint if available (default: enabled)."
+    )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Disable resume - run all tasks even if some are already completed."
+    )
 
     args = parser.parse_args()
+
+    # Handle --no-resume flag
+    resume_enabled = args.resume and not args.no_resume
 
     # Set metrics enabled status based on CLI arg
     set_metrics_enabled(args.enable_metrics)
@@ -570,6 +652,7 @@ if __name__ == "__main__":
         logs_base_dir=logs_base_dir,
         max_task_timeout=args.max_task_timeout,
         circuit_breaker_threshold=args.circuit_breaker_threshold,
+        resume=resume_enabled,
     ))
     
     sys.exit(exit_code_from_main) 
