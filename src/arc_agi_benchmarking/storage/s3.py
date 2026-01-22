@@ -73,8 +73,7 @@ class S3StorageBackend(StorageBackend):
             error_code = e.response.get("Error", {}).get("Code", "")
             if error_code == "404":
                 return False
-            logger.warning(f"S3 head_object error for {key}: {e}")
-            return False
+            raise StorageReadError(f"Failed to check existence of {key}: {e}")
 
     def delete(self, key: str) -> None:
         full_key = self._full_key(key)
@@ -92,8 +91,7 @@ class S3StorageBackend(StorageBackend):
                 for obj in page.get("Contents", []):
                     keys.append(self._strip_prefix(obj["Key"]))
         except ClientError as e:
-            logger.error(f"S3 list error for prefix {prefix}: {e}")
-            return []
+            raise StorageReadError(f"Failed to list keys with prefix {prefix}: {e}")
         return sorted(keys)
 
     def __repr__(self) -> str:
