@@ -152,16 +152,45 @@ def read_provider_rate_limits() -> dict:
             rate_limits_data = yaml.safe_load(f)
             if not isinstance(rate_limits_data, dict):
                 raise yaml.YAMLError("provider_config.yml root should be a dictionary of providers.")
-            # Basic validation for each provider's config
+            # Basic validation for each provider's config (skip 'defaults' key)
             for provider, limits in rate_limits_data.items():
+                if provider == 'defaults':
+                    continue  # Skip defaults section
                 if not isinstance(limits, dict) or 'rate' not in limits or 'period' not in limits:
                     raise yaml.YAMLError(
                         f"Provider '{provider}' in provider_config.yml must have 'rate' and 'period' keys."
                     )
-                if not isinstance(limits['rate'], int) or not isinstance(limits['period'], int):
+                if not isinstance(limits['rate'], (int, float)) or not isinstance(limits['period'], (int, float)):
                     raise yaml.YAMLError(
-                        f"'rate' and 'period' for provider '{provider}' must be integers."
+                        f"'rate' and 'period' for provider '{provider}' must be numbers."
                     )
             return rate_limits_data
         except yaml.YAMLError as e:
             raise yaml.YAMLError(f"Error parsing provider_config.yml: {e}")
+
+
+from arc_agi_benchmarking.resilience.timeout import (
+    DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_REASONING_TIMEOUT,
+)
+
+DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 5
+DEFAULT_CIRCUIT_BREAKER_RECOVERY = 60
+
+
+def get_provider_timeout_config(provider_name: str, all_provider_limits: dict) -> dict:
+    """Get timeout and circuit breaker configuration for a provider."""
+    defaults = all_provider_limits.get('defaults', {})
+    default_request_timeout = defaults.get('request_timeout', DEFAULT_REQUEST_TIMEOUT)
+    default_reasoning_timeout = defaults.get('reasoning_timeout', DEFAULT_REASONING_TIMEOUT)
+    default_cb_threshold = defaults.get('circuit_breaker_threshold', DEFAULT_CIRCUIT_BREAKER_THRESHOLD)
+    default_cb_recovery = defaults.get('circuit_breaker_recovery', DEFAULT_CIRCUIT_BREAKER_RECOVERY)
+
+    provider_config = all_provider_limits.get(provider_name, {})
+
+    return {
+        'request_timeout': provider_config.get('request_timeout', default_request_timeout),
+        'reasoning_timeout': provider_config.get('reasoning_timeout', default_reasoning_timeout),
+        'circuit_breaker_threshold': provider_config.get('circuit_breaker_threshold', default_cb_threshold),
+        'circuit_breaker_recovery': provider_config.get('circuit_breaker_recovery', default_cb_recovery),
+    }
