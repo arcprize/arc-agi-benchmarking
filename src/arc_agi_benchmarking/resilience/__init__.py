@@ -41,3 +41,13 @@ __all__ = [
     "request_timeout",
     "task_timeout",
 ]
+
+# Optional distributed rate limiter (requires boto3)
+try:
+    from arc_agi_benchmarking.resilience.distributed_rate_limiter import (
+        DistributedRateLimiter,
+    )
+
+    __all__.append("DistributedRateLimiter")
+except ImportError:
+    pass  # boto3 not installed

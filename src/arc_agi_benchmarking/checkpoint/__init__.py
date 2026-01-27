@@ -19,3 +19,11 @@ __all__ = [
     "BatchProgressManager",
     "TaskCheckpointManager",
 ]
+
+# Optional DynamoDB support
+try:
+    from arc_agi_benchmarking.checkpoint.dynamodb_progress import DynamoDBProgressManager
+
+    __all__.append("DynamoDBProgressManager")
+except ImportError:
+    pass  # boto3 not installed
