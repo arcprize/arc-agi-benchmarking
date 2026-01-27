@@ -124,11 +124,27 @@ except ImportError:
     BOTO3_AVAILABLE = False
     boto3 = None  # type: ignore
 
-    # No-op decorator when moto isn't installed
-    def mock_aws():  # type: ignore
-        def decorator(func):
-            return func
-        return decorator
+    # No-op decorator/context manager when moto isn't installed
+    class mock_aws:  # type: ignore
+        """Stub for moto.mock_aws when moto is not installed."""
+
+        def __init__(self, func=None):
+            self.func = func
+
+        def __call__(self, *args, **kwargs):
+            # Used as @mock_aws (without parens) - func is passed to __init__
+            if self.func is not None:
+                return self.func(*args, **kwargs)
+            # Used as @mock_aws() (with parens) - return decorator
+            if args and callable(args[0]):
+                return args[0]
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
 
 
 @pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3/moto not installed")
