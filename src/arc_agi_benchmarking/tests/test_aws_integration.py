@@ -122,6 +122,13 @@ try:
     BOTO3_AVAILABLE = True
 except ImportError:
     BOTO3_AVAILABLE = False
+    boto3 = None  # type: ignore
+
+    # No-op decorator when moto isn't installed
+    def mock_aws():  # type: ignore
+        def decorator(func):
+            return func
+        return decorator
 
 
 @pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3/moto not installed")
