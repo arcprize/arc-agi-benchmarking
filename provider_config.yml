@@ -34,7 +34,7 @@ xai:
   period: 60    # per 1 second
 
 openrouter:
-  rate: 400     # 400 requests
+  rate: 400     # Default for OpenRouter (models can override with rate_limit in models.yml)
   period: 60    # per 60 seconds
 
 claudeagentsdk:

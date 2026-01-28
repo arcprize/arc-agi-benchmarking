@@ -1505,6 +1505,18 @@ models:
 ###### Moonshot ########
 ########################
 
+  - name: "kimi-k2.5"
+    model_name: "moonshotai/kimi-k2.5"
+    provider: "openrouter"
+    max_tokens: 100000
+    rate_limit:
+      rate: 3       # Model-specific: ~6 min/response, so limit concurrency
+      period: 60
+    pricing:
+      date: "2025-01-27"
+      input: 0.60
+      output: 3.00
+
   - name: "qwen3-235b-a22b-07-25"
     model_name: "qwen/qwen3-235b-a22b-07-25"
     provider: "openrouter"
