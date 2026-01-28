@@ -1,7 +1,23 @@
 import os
 import json
 from pathlib import Path
-from arc_agi_benchmarking.adapters import ProviderAdapter, AnthropicAdapter, OpenAIAdapter, DeepseekAdapter, GeminiAdapter, HuggingFaceFireworksAdapter, FireworksAdapter, GrokAdapter, OpenRouterAdapter, XAIAdapter, RandomAdapter, ClaudeagentsdkAdapter, CodexcliAdapter
+from arc_agi_benchmarking.adapters import (
+    ProviderAdapter,
+    AnthropicAdapter,
+    OpenAIAdapter,
+    DeepseekAdapter,
+    GeminiAdapter,
+    HuggingFaceFireworksAdapter,
+    FireworksAdapter,
+    GrokAdapter,
+    OpenRouterAdapter,
+    DashScopeAdapter,
+    MuleRouterAdapter,
+    XAIAdapter,
+    RandomAdapter,
+    ClaudeagentsdkAdapter,
+    CodexcliAdapter,
+)
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
@@ -25,6 +41,8 @@ PROVIDER_ADAPTERS = {
     "fireworks": FireworksAdapter,
     "grok": GrokAdapter,
     "openrouter": OpenRouterAdapter,
+    "dashscope": DashScopeAdapter,
+    "mulerouter": MuleRouterAdapter,
     "xai": XAIAdapter,
     "random": RandomAdapter,
     "claudeagentsdk": ClaudeagentsdkAdapter,
@@ -33,7 +51,15 @@ PROVIDER_ADAPTERS = {
 
 
 class ARCTester:
-    def __init__(self, config: str, save_submission_dir: str, overwrite_submission: bool, print_submission: bool, num_attempts: int, retry_attempts: int):
+    def __init__(
+        self,
+        config: str,
+        save_submission_dir: str,
+        overwrite_submission: bool,
+        print_submission: bool,
+        num_attempts: int,
+        retry_attempts: int,
+    ):
         self.config = config
         self.model_config = utils.read_models_config(config)
         self.provider = self.init_provider(self.model_config.provider)
@@ -49,8 +75,15 @@ class ARCTester:
         except KeyError:
             raise ValueError(f"Unsupported provider: {provider_name}")
         return adapter_cls(self.config)
-        
-    def predict_task_output(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int):
+
+    def predict_task_output(
+        self,
+        training_pairs: List[ARCPair],
+        test_input: ARCPair,
+        task_id: str,
+        test_id: str,
+        pair_index: int,
+    ):
         """
         Given a task, predict the test output. This reponse may need parsing.
 
@@ -62,40 +95,63 @@ class ARCTester:
         # Convert the training pairs and test pairs into a prompt
         prompt = convert_task_pairs_to_prompt(training_pairs, test_input)
 
-        logger.info(f"Making prediction for task {task_id}, test {test_id}, pair_index {pair_index}")
-        logger.debug(f"Using model config: {self.model_config.name} ({self.model_config.provider})")
+        logger.info(
+            f"Making prediction for task {task_id}, test {test_id}, pair_index {pair_index}"
+        )
+        logger.debug(
+            f"Using model config: {self.model_config.name} ({self.model_config.provider})"
+        )
         logger.debug(f"Prompt length: {len(prompt)} characters")
-        
+
         try:
             logger.debug("Waiting for model response...")
-            response: Attempt = self.provider.make_prediction(prompt, task_id=task_id, test_id=test_id, pair_index=pair_index)
-            
-            logger.debug(f"Response received - Cost: ${response.metadata.cost.total_cost:.6f}, Usage: {response.metadata.usage.total_tokens} tokens")
-            
+            response: Attempt = self.provider.make_prediction(
+                prompt, task_id=task_id, test_id=test_id, pair_index=pair_index
+            )
+
+            logger.debug(
+                f"Response received - Cost: ${response.metadata.cost.total_cost:.6f}, Usage: {response.metadata.usage.total_tokens} tokens"
+            )
+
             # In verbose mode, show more detailed response info
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug(f"Response details - Model: {response.metadata.model}")
-                if hasattr(response.metadata.usage, 'completion_tokens_details') and response.metadata.usage.completion_tokens_details:
+                if (
+                    hasattr(response.metadata.usage, "completion_tokens_details")
+                    and response.metadata.usage.completion_tokens_details
+                ):
                     reasoning_tokens = response.metadata.usage.completion_tokens_details.reasoning_tokens
                     if reasoning_tokens > 0:
                         logger.debug(f"Reasoning tokens used: {reasoning_tokens}")
-                
+
         except Exception as e:
-            logger.error(f"Provider prediction failed for task {task_id}, test {test_id}, pair_index {pair_index}: {e}")
+            logger.error(
+                f"Provider prediction failed for task {task_id}, test {test_id}, pair_index {pair_index}: {e}"
+            )
             if logger.isEnabledFor(logging.DEBUG):
                 import traceback
+
                 logger.debug(f"Full traceback:\n{traceback.format_exc()}")
             raise
 
         return response
 
-    def get_task_prediction(self, training_pairs: List[ARCPair], test_input: ARCPair, task_id: str, test_id: str, pair_index: int) -> Attempt:
+    def get_task_prediction(
+        self,
+        training_pairs: List[ARCPair],
+        test_input: ARCPair,
+        task_id: str,
+        test_id: str,
+        pair_index: int,
+    ) -> Attempt:
         """
         Modified to return the full Attempt object instead of just the parsed answer
         Uses the refactored parsing logic from arc_agi_benchmarking.parsing
         """
         # Get the initial response as an Attempt object
-        attempt: Attempt = self.predict_task_output(training_pairs, test_input, task_id, test_id, pair_index)
+        attempt: Attempt = self.predict_task_output(
+            training_pairs, test_input, task_id, test_id, pair_index
+        )
 
         try:
             # If the validator couldn't parse the answer, fall back to the provider extractor
@@ -135,20 +191,26 @@ class ARCTester:
             or None if no valid predictions were made or saving is disabled but run completes.
             Returns None immediately if submission exists and overwrite is False.
         """
-        
+
         logger.info(f"Running task {task_id} with config {self.config}")
         utils.validate_data(data_dir, task_id)
 
         # Use the config name as the test_id
         test_id = self.config
-        
+
         logger.info(f"Using model_config: {test_id} for task_id: {task_id}")
 
         # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
-        if self.save_submission_dir and utils.submission_exists(self.save_submission_dir, task_id) and not self.overwrite_submission:
-            logger.info(f"Submission for task {task_id} using {test_id} already exists, skipping")
+        if (
+            self.save_submission_dir
+            and utils.submission_exists(self.save_submission_dir, task_id)
+            and not self.overwrite_submission
+        ):
+            logger.info(
+                f"Submission for task {task_id} using {test_id} already exists, skipping"
+            )
             return
-        
+
         task_attempts = []
 
         train_pairs = utils.get_train_pairs_from_task(data_dir, task_id)
@@ -158,8 +220,10 @@ class ARCTester:
         # Go through each test pair to get a prediction. 96% of challenges have 1 pair.
         for t, pair_input_obj in enumerate(test_input_pairs):
             pair_index = t
-            logger.info(f"Starting task {task_id}, ModelConfig: {test_id}, Test Pair Index: {pair_index+1}/{len(test_input_pairs)}")
-            
+            logger.info(
+                f"Starting task {task_id}, ModelConfig: {test_id}, Test Pair Index: {pair_index + 1}/{len(test_input_pairs)}"
+            )
+
             pair_submission_attempts = {}
 
             # Run through each prediction attempt
@@ -169,33 +233,46 @@ class ARCTester:
 
                 for retry_num in range(self.retry_attempts):
                     try:
-                        logger.debug(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Predicting attempt #{attempt_num}, retry #{retry_num + 1}")
+                        logger.debug(
+                            f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, Predicting attempt #{attempt_num}, retry #{retry_num + 1}"
+                        )
                         # Now storing the full attempt object with task_id and test_id
                         attempt_obj = self.get_task_prediction(
                             training_pairs=train_pairs,
                             test_input=pair_input_obj,
                             task_id=task_id,
                             test_id=test_id,
-                            pair_index=pair_index
+                            pair_index=pair_index,
                         )
 
                         if attempt_obj is not None:
-                            logger.debug(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Attempt #{attempt_num} successful. Prediction: {attempt_obj.answer}")
+                            logger.debug(
+                                f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, Attempt #{attempt_num} successful. Prediction: {attempt_obj.answer}"
+                            )
                             # Set correct field by comparing to ground truth
-                            attempt_obj.correct = attempt_obj.answer == test_pairs[pair_index].output
-                            pair_submission_attempts[attempt_key] = attempt_obj.model_dump(mode='json')
-                            break 
+                            attempt_obj.correct = (
+                                attempt_obj.answer == test_pairs[pair_index].output
+                            )
+                            pair_submission_attempts[attempt_key] = (
+                                attempt_obj.model_dump(mode="json")
+                            )
+                            break
                     except Exception as e:
-                        error_msg = f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, Attempt #{attempt_num}, Retry #{retry_num + 1} failed. Error: {e}"
+                        error_msg = f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, Attempt #{attempt_num}, Retry #{retry_num + 1} failed. Error: {e}"
                         logger.warning(error_msg)
-                        
+
                         # In verbose mode, show full traceback for debugging
                         if logger.isEnabledFor(logging.DEBUG):
                             import traceback
-                            logger.debug(f"Full traceback for the above error:\n{traceback.format_exc()}")
+
+                            logger.debug(
+                                f"Full traceback for the above error:\n{traceback.format_exc()}"
+                            )
 
                     if retry_num == self.retry_attempts - 1:
-                        logger.warning(f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index+1}, All {self.retry_attempts} retries failed for attempt #{attempt_num}")
+                        logger.warning(
+                            f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, All {self.retry_attempts} retries failed for attempt #{attempt_num}"
+                        )
 
             # Only append non-None attempts for this pair
             if any(v is not None for v in pair_submission_attempts.values()):
@@ -204,49 +281,87 @@ class ARCTester:
         if task_attempts:
             if self.print_submission:
                 # Log the submission content; use json.dumps for potentially large structures
-                logger.info(f"Final submission for task {task_id}, ModelConfig {test_id}:\n{json.dumps(task_attempts, indent=4)}")
+                logger.info(
+                    f"Final submission for task {task_id}, ModelConfig {test_id}:\n{json.dumps(task_attempts, indent=4)}"
+                )
 
             if self.save_submission_dir:
                 utils.save_submission(self.save_submission_dir, task_id, task_attempts)
-                logger.info(f"Submission for task {task_id}, ModelConfig {test_id} saved to {self.save_submission_dir}")
+                logger.info(
+                    f"Submission for task {task_id}, ModelConfig {test_id} saved to {self.save_submission_dir}"
+                )
         else:
-            logger.warning(f"No valid predictions for task {task_id}, ModelConfig {test_id} after all attempts. Skipping submission.")
+            logger.warning(
+                f"No valid predictions for task {task_id}, ModelConfig {test_id} after all attempts. Skipping submission."
+            )
 
         return task_attempts if task_attempts else None
 
+
 def main_cli(cli_args: Optional[List[str]] = None):
     parser = argparse.ArgumentParser(description="Run ARC Tester")
-    parser.add_argument("--data_dir", type=str, help="Data set to run. Configure in config/config.json")
+    parser.add_argument(
+        "--data_dir", type=str, help="Data set to run. Configure in config/config.json"
+    )
     parser.add_argument("--task_id", type=str, help="Specific task ID to run")
-    parser.add_argument("--config", type=str, required=True, help="Configuration name (e.g., 'o1_high', 'gemini_short_response')")
+    parser.add_argument(
+        "--config",
+        type=str,
+        required=True,
+        help="Configuration name (e.g., 'o1_high', 'gemini_short_response')",
+    )
     parser.add_argument(
         "--save_submission_dir",
         type=str,
         metavar="FOLDER_NAME",
-        help="Folder name to save the submissions under Ex: 'submissions/o1_high'"
+        help="Folder name to save the submissions under Ex: 'submissions/o1_high'",
     )
-    parser.add_argument("--overwrite_submission", action="store_true", help="Overwrite the submission if it already exists")
-    parser.add_argument("--print_submission", action="store_true", help="Print the submission to the console after each task")
-    parser.add_argument("--task_set", type=str, default="public_eval", choices=["public_eval", "public_training"], help="Task set to run")
-    parser.add_argument("--num_attempts", type=int, default=2, help="Number of attempts for each prediction")
-    parser.add_argument("--retry_attempts", type=int, default=2, help="Number of retry attempts for failed predictions")
+    parser.add_argument(
+        "--overwrite_submission",
+        action="store_true",
+        help="Overwrite the submission if it already exists",
+    )
+    parser.add_argument(
+        "--print_submission",
+        action="store_true",
+        help="Print the submission to the console after each task",
+    )
+    parser.add_argument(
+        "--task_set",
+        type=str,
+        default="public_eval",
+        choices=["public_eval", "public_training"],
+        help="Task set to run",
+    )
+    parser.add_argument(
+        "--num_attempts",
+        type=int,
+        default=2,
+        help="Number of attempts for each prediction",
+    )
+    parser.add_argument(
+        "--retry_attempts",
+        type=int,
+        default=2,
+        help="Number of retry attempts for failed predictions",
+    )
     parser.add_argument(
         "--enable-metrics",
         action="store_true",
         default=False,
-        help="Enable metrics collection and dumping (disabled by default)."
+        help="Enable metrics collection and dumping (disabled by default).",
     )
     parser.add_argument(
-        "--log-level", 
-        type=str, 
-        default="INFO", 
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
-        help="Set the logging level (default: INFO)"
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set the logging level (default: INFO)",
     )
     parser.add_argument(
-        "--verbose", 
-        action="store_true", 
-        help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)"
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)",
     )
     args = parser.parse_args(cli_args)
 
@@ -267,7 +382,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
     )
 
     # Enable OpenAI SDK logging to capture API calls
-    logging.getLogger('openai').setLevel(logging.INFO)
+    logging.getLogger("openai").setLevel(logging.INFO)
 
     if args.verbose:
         logger.info("Verbose mode enabled - showing debug output")
@@ -275,19 +390,17 @@ def main_cli(cli_args: Optional[List[str]] = None):
 
     arc_solver = ARCTester(
         config=args.config,
-        save_submission_dir=args.save_submission_dir, 
+        save_submission_dir=args.save_submission_dir,
         overwrite_submission=args.overwrite_submission,
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
-        retry_attempts=args.retry_attempts
+        retry_attempts=args.retry_attempts,
     )
-   
-    arc_solver.generate_task_solution(
-        data_dir=args.data_dir,
-        task_id=args.task_id
-    )
+
+    arc_solver.generate_task_solution(data_dir=args.data_dir, task_id=args.task_id)
     # Optionally return the solver or a status for more detailed testing if needed
     # For this test, we'll just ensure it runs without error.
+
 
 if __name__ == "__main__":
     main_cli()
