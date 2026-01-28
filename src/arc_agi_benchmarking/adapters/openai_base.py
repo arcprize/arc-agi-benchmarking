@@ -25,7 +25,8 @@ import re
 logger = logging.getLogger(__name__)
 
 # Keys in model_config.kwargs that are for internal use only and should NOT be passed to the API
-_CONFIG_ONLY_KWARGS = {"rate_limit", "pricing"}
+# Note: 'reasoning' at top-level is invalid - use 'extra_body: {reasoning: ...}' for OpenRouter
+_CONFIG_ONLY_KWARGS = {"rate_limit", "pricing", "reasoning"}
 
 
 def _filter_api_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:

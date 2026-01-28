@@ -1509,8 +1509,11 @@ models:
     model_name: "moonshotai/kimi-k2.5"
     provider: "openrouter"
     max_tokens: 100000
+    extra_body:
+      reasoning:
+        enabled: true
     rate_limit:
-      rate: 3       # Model-specific: ~6 min/response, so limit concurrency
+      rate: 3
       period: 60
     pricing:
       date: "2025-01-27"
