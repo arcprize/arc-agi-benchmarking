@@ -182,3 +182,4 @@ analyze_submission_times.py
 /logs/*
 /test_logs/*
 .codex_*
+dummy_submissions

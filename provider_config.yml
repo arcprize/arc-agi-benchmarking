@@ -34,7 +34,7 @@ xai:
   period: 60    # per 1 second
 
 openrouter:
-  rate: 400     # 400 requests
+  rate: 400     # Default for OpenRouter (models can override with rate_limit in models.yml)
   period: 60    # per 60 seconds
 
 claudeagentsdk:
@@ -43,6 +43,14 @@ claudeagentsdk:
 
 codexcli:
   rate: 10     # 10 requests
+  period: 60    # per 60 seconds
+
+dashscope:
+  rate: 20     # Alibaba Cloud DashScope (Qwen models)
+  period: 60    # per 60 seconds
+
+mulerouter:
+  rate: 30     # MuleRouter (Qwen models)
   period: 60    # per 60 seconds
 
 # Add other provider keys (matching models.yml 'provider' field) and their limits as needed.
