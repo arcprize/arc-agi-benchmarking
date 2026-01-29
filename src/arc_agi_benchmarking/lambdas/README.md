@@ -109,6 +109,51 @@ print(result)
 "
 ```
 
+## Retry Semantics
+
+**Important**: The Step Functions Map state does not automatically re-queue failed tasks. The retry flow works as follows:
+
+1. **Batch Job Fails** → Step Functions catches the error
+2. **`handle_error` Lambda** → Increments retry count, marks task as:
+   - `FAILED` (if retries remaining) — eligible for retry
+   - `FAILED_PERMANENT` (if max retries exhausted) — no more retries
+3. **Map continues** → Other tasks proceed; failed task is NOT re-queued
+
+### Operational Requirement: Retry Sweeper
+
+To actually retry failed tasks, you need an external mechanism:
+
+**Option A: Scheduled Lambda Sweeper**
+```python
+# Scan for FAILED tasks, resubmit to Step Functions
+tasks = dynamodb.query(
+    TableName=TASKS_TABLE,
+    IndexName='status-index',
+    KeyConditionExpression='status = :s',
+    ExpressionAttributeValues={':s': {'S': 'FAILED'}}
+)
+# Resubmit each task to a new or existing run
+```
+
+**Option B: Manual Re-run**
+```bash
+# Find failed tasks
+aws dynamodb query --table-name arc_task_progress \
+  --index-name status-index \
+  --key-condition-expression "status = :s" \
+  --expression-attribute-values '{":s":{"S":"FAILED"}}'
+
+# Trigger new run with failed task IDs
+```
+
+**Option C: Accept partial completion**
+If retry isn't critical, the `aggregate` Lambda will correctly count `FAILED` tasks in the final metrics.
+
+This design was chosen because:
+- Step Functions Map state doesn't support dynamic re-queuing
+- Separating retry logic allows flexible retry policies (immediate, exponential backoff, manual)
+- Failed tasks are preserved for debugging before retry
+
 ## State Machine Flow
 
 ```
