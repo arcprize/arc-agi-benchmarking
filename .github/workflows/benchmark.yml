@@ -1,0 +1,232 @@
+name: Run Benchmarks
+
+on:
+  push:
+    paths:
+      - 'src/arc_agi_benchmarking/models.yml'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      config_name:
+        description: 'Model config to benchmark (from models.yml)'
+        required: true
+        type: string
+      data_source:
+        description: 'Data source for tasks'
+        required: false
+        default: 'evaluation'
+        type: choice
+        options:
+          - sample
+          - evaluation
+          - training
+      task_list:
+        description: 'Optional: Comma-separated task IDs (leave empty for all tasks)'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: us-west-2
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      configs_to_run: ${{ steps.detect.outputs.configs }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Fetch full history to support multi-commit pushes
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Detect changed configs
+        id: detect
+        run: |
+          # Use push event's before/after refs to cover multi-commit pushes
+          # github.event.before is the commit SHA before the push
+          # github.sha is the commit SHA after the push
+          BASE_REF="${{ github.event.before }}"
+          HEAD_REF="${{ github.sha }}"
+          
+          echo "Comparing $BASE_REF to $HEAD_REF"
+          
+          # Detect changed configs (script handles null SHA for first push)
+          CHANGED_CONFIGS=$(python scripts/detect_config_changes.py --base "$BASE_REF" --head "$HEAD_REF")
+          
+          echo "Detected configs: $CHANGED_CONFIGS"
+          
+          if [ "$CHANGED_CONFIGS" = "[]" ]; then
+            echo "configs=[]" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "configs=$CHANGED_CONFIGS" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+  trigger-benchmarks-on-push:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.detect-changes.outputs.configs_to_run) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BENCHMARK_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get task list from S3
+        id: tasks
+        run: |
+          # List tasks from S3 bucket
+          TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
+          echo "task_ids=$TASKS" >> $GITHUB_OUTPUT
+          echo "Found $(echo $TASKS | jq length) tasks"
+
+      - name: Start Step Functions execution
+        id: start_execution
+        run: |
+          # Step Functions execution names are limited to 80 characters
+          # Format: bm-{run_id}-{attempt}-{config_or_truncated+hash}
+          RUN_ID="${{ github.run_id }}"
+          ATTEMPT="${{ github.run_attempt }}"
+          CONFIG="${{ matrix.config }}"
+          PREFIX="bm-${RUN_ID}-${ATTEMPT}-"
+          MAX_LEN=80
+          HASH_LEN=8
+          RAW_NAME="${PREFIX}${CONFIG}"
+          
+          if [ ${#RAW_NAME} -le ${MAX_LEN} ]; then
+            EXECUTION_NAME="${RAW_NAME}"
+          else
+            HASH=$(printf "%s" "${CONFIG}" | sha256sum | cut -c1-${HASH_LEN})
+            MAX_SUFFIX_LEN=$((MAX_LEN - ${#PREFIX} - 1 - HASH_LEN))
+            if [ ${MAX_SUFFIX_LEN} -lt 0 ]; then
+              MAX_SUFFIX_LEN=0
+            fi
+            TRUNCATED_CONFIG="${CONFIG:0:${MAX_SUFFIX_LEN}}"
+            EXECUTION_NAME="${PREFIX}${TRUNCATED_CONFIG}-${HASH}"
+          fi
+          
+          echo "Execution name: $EXECUTION_NAME (${#EXECUTION_NAME} chars)"
+          
+          RESPONSE=$(aws stepfunctions start-execution \
+            --state-machine-arn "arn:aws:states:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:stateMachine:arc-benchmark-sandbox-teal-orchestrator" \
+            --name "$EXECUTION_NAME" \
+            --input '{
+              "config_name": "${{ matrix.config }}",
+              "data_source": "evaluation",
+              "task_ids": ${{ steps.tasks.outputs.task_ids }},
+              "triggered_by": "${{ github.actor }}",
+              "commit_sha": "${{ github.sha }}"
+            }')
+          
+          EXECUTION_ARN=$(echo $RESPONSE | jq -r '.executionArn')
+          echo "execution_arn=$EXECUTION_ARN" >> $GITHUB_OUTPUT
+          echo "execution_name=$EXECUTION_NAME" >> $GITHUB_OUTPUT
+
+      - name: Output execution link
+        run: |
+          echo "## Benchmark Started" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Config**: ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View Execution in AWS Console](https://console.aws.amazon.com/states/home?region=${{ env.AWS_REGION }}#/executions/details/${{ steps.start_execution.outputs.execution_arn }})" >> $GITHUB_STEP_SUMMARY
+
+  trigger-benchmark-manual:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BENCHMARK_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get task list
+        id: tasks
+        run: |
+          if [ -n "${{ inputs.task_list }}" ]; then
+            # Use provided task list
+            TASKS=$(echo "${{ inputs.task_list }}" | tr ',' '\n' | jq -R . | jq -s .)
+          else
+            # Get all tasks from S3
+            TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
+          fi
+          echo "task_ids=$TASKS" >> $GITHUB_OUTPUT
+          echo "Found $(echo $TASKS | jq length) tasks"
+
+      - name: Start Step Functions execution
+        id: start_execution
+        run: |
+          # Step Functions execution names are limited to 80 characters
+          # Format: bm-{run_id}-{attempt}-{config_or_truncated+hash}
+          RUN_ID="${{ github.run_id }}"
+          ATTEMPT="${{ github.run_attempt }}"
+          CONFIG="${{ inputs.config_name }}"
+          PREFIX="bm-${RUN_ID}-${ATTEMPT}-"
+          MAX_LEN=80
+          HASH_LEN=8
+          RAW_NAME="${PREFIX}${CONFIG}"
+          
+          if [ ${#RAW_NAME} -le ${MAX_LEN} ]; then
+            EXECUTION_NAME="${RAW_NAME}"
+          else
+            HASH=$(printf "%s" "${CONFIG}" | sha256sum | cut -c1-${HASH_LEN})
+            MAX_SUFFIX_LEN=$((MAX_LEN - ${#PREFIX} - 1 - HASH_LEN))
+            if [ ${MAX_SUFFIX_LEN} -lt 0 ]; then
+              MAX_SUFFIX_LEN=0
+            fi
+            TRUNCATED_CONFIG="${CONFIG:0:${MAX_SUFFIX_LEN}}"
+            EXECUTION_NAME="${PREFIX}${TRUNCATED_CONFIG}-${HASH}"
+          fi
+          
+          echo "Execution name: $EXECUTION_NAME (${#EXECUTION_NAME} chars)"
+          
+          RESPONSE=$(aws stepfunctions start-execution \
+            --state-machine-arn "arn:aws:states:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:stateMachine:arc-benchmark-sandbox-teal-orchestrator" \
+            --name "$EXECUTION_NAME" \
+            --input '{
+              "config_name": "${{ inputs.config_name }}",
+              "data_source": "${{ inputs.data_source }}",
+              "task_ids": ${{ steps.tasks.outputs.task_ids }},
+              "triggered_by": "${{ github.actor }}",
+              "commit_sha": "${{ github.sha }}"
+            }')
+          
+          EXECUTION_ARN=$(echo $RESPONSE | jq -r '.executionArn')
+          echo "execution_arn=$EXECUTION_ARN" >> $GITHUB_OUTPUT
+          echo "execution_name=$EXECUTION_NAME" >> $GITHUB_OUTPUT
+
+      - name: Output execution link
+        run: |
+          echo "## Benchmark Started" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Config**: ${{ inputs.config_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Data Source**: ${{ inputs.data_source }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "[View Execution in AWS Console](https://console.aws.amazon.com/states/home?region=${{ env.AWS_REGION }}#/executions/details/${{ steps.start_execution.outputs.execution_arn }})" >> $GITHUB_STEP_SUMMARY
+          
+          echo "::notice::Benchmark started for ${{ inputs.config_name }}. View at: https://console.aws.amazon.com/states/home?region=${{ env.AWS_REGION }}#/executions/details/${{ steps.start_execution.outputs.execution_arn }}"
