@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "run_id": "mock_config",
+  "tasks": {
+    "task1": {
+      "task_id": "task1",
+      "status": "pending",
+      "attempts_completed": 0,
+      "attempts_total": 1,
+      "cost_usd": "0",
+      "error": null,
+      "worker_id": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "task2": {
+      "task_id": "task2",
+      "status": "pending",
+      "attempts_completed": 0,
+      "attempts_total": 1,
+      "cost_usd": "0",
+      "error": null,
+      "worker_id": null,
+      "started_at": null,
+      "completed_at": null
+    }
+  },
+  "total_cost_usd": "0",
+  "total_tokens_input": 0,
+  "total_tokens_output": 0,
+  "started_at": "2026-01-29T01:01:06.518700+00:00",
+  "updated_at": "2026-01-29T17:13:05.899076+00:00"
+}
