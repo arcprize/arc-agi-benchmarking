@@ -1,0 +1,155 @@
+{
+  "_comment": "IAM policies for ARC Benchmark AWS Batch jobs",
+  
+  "BatchJobRole": {
+    "_description": "Role assumed by the running container (job role)",
+    "roleName": "ArcBenchmarkBatchRole",
+    "assumeRolePolicy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "ecs-tasks.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    },
+    "policies": [
+      {
+        "policyName": "ArcBenchmarkS3Access",
+        "policyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ReadTaskData",
+              "Effect": "Allow",
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket"
+              ],
+              "Resource": [
+                "arn:aws:s3:::arc-benchmarks",
+                "arn:aws:s3:::arc-benchmarks/tasks/*"
+              ]
+            },
+            {
+              "Sid": "WriteSubmissions",
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+              ],
+              "Resource": [
+                "arn:aws:s3:::arc-benchmarks/runs/*"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "policyName": "ArcBenchmarkDynamoDBAccess",
+        "policyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ProgressTracking",
+              "Effect": "Allow",
+              "Action": [
+                "dynamodb:GetItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:Query"
+              ],
+              "Resource": [
+                "arn:aws:dynamodb:*:*:table/arc_benchmark_runs",
+                "arn:aws:dynamodb:*:*:table/arc_task_progress",
+                "arn:aws:dynamodb:*:*:table/arc_rate_limits"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "policyName": "ArcBenchmarkCloudWatchLogs",
+        "policyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents"
+              ],
+              "Resource": [
+                "arn:aws:logs:*:*:log-group:/aws/batch/arc-benchmark:*"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  
+  "BatchExecutionRole": {
+    "_description": "Role used by ECS to pull images and write logs (execution role)",
+    "roleName": "ArcBenchmarkBatchExecutionRole",
+    "assumeRolePolicy": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "ecs-tasks.amazonaws.com"
+          },
+          "Action": "sts:AssumeRole"
+        }
+      ]
+    },
+    "policies": [
+      {
+        "policyName": "ArcBenchmarkExecutionPolicy",
+        "policyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "ECRAccess",
+              "Effect": "Allow",
+              "Action": [
+                "ecr:GetAuthorizationToken",
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "CloudWatchLogs",
+              "Effect": "Allow",
+              "Action": [
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:CreateLogGroup"
+              ],
+              "Resource": [
+                "arn:aws:logs:*:*:log-group:/aws/batch/arc-benchmark:*"
+              ]
+            },
+            {
+              "Sid": "SecretsAccess",
+              "Effect": "Allow",
+              "Action": [
+                "secretsmanager:GetSecretValue"
+              ],
+              "Resource": [
+                "arn:aws:secretsmanager:*:*:secret:arc-benchmark/*"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
