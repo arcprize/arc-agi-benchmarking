@@ -16,7 +16,7 @@ This directory contains the Lambda handlers used by AWS Step Functions to orches
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `RUNS_TABLE` | No | `arc_benchmark_runs` | DynamoDB runs table name |
-| `TASKS_TABLE` | No | `arc_benchmark_tasks` | DynamoDB tasks table name |
+| `TASKS_TABLE` | No | `arc_task_progress` | DynamoDB tasks table name |
 | `S3_BUCKET` | No | - | S3 bucket for storing aggregated results |
 | `MAX_RETRIES` | No | `3` | Maximum retry attempts before marking failed |
 | `CLOUDWATCH_NAMESPACE` | No | `ArcBenchmark` | CloudWatch metrics namespace |
@@ -96,7 +96,7 @@ export AWS_ENDPOINT_URL=http://localhost:4566
 export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 export RUNS_TABLE=arc_benchmark_runs
-export TASKS_TABLE=arc_benchmark_tasks
+export TASKS_TABLE=arc_task_progress
 
 # Test handler directly
 python -c "
