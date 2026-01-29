@@ -19,7 +19,7 @@ logger.setLevel(logging.INFO)
 
 # Environment variables
 RUNS_TABLE = os.environ.get("RUNS_TABLE", "arc_benchmark_runs")
-TASKS_TABLE = os.environ.get("TASKS_TABLE", "arc_benchmark_tasks")
+TASKS_TABLE = os.environ.get("TASKS_TABLE", "arc_task_progress")
 MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "3"))
 
 
@@ -88,16 +88,17 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         should_retry = new_retry_count < MAX_RETRIES
 
         if should_retry:
-            # Mark for retry
-            new_status = "PENDING"  # Will be picked up again
+            # Mark as failed but retryable. Note: Step Functions Map state doesn't
+            # automatically re-queue - a separate sweep/retry mechanism is needed.
+            new_status = "FAILED"
             logger.info(
-                f"Task {task_id} will be retried (attempt {new_retry_count}/{MAX_RETRIES})"
+                f"Task {task_id} failed (attempt {new_retry_count}/{MAX_RETRIES}), eligible for retry"
             )
         else:
-            # Mark as permanently failed
-            new_status = "FAILED"
+            # Mark as permanently failed - retries exhausted
+            new_status = "FAILED_PERMANENT"
             logger.warning(
-                f"Task {task_id} has exhausted retries ({MAX_RETRIES}), marking as FAILED"
+                f"Task {task_id} has exhausted retries ({MAX_RETRIES}), marking as FAILED_PERMANENT"
             )
 
         # Update task record
@@ -123,8 +124,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         )
 
-        # If permanently failed, increment the run's failed_tasks counter
-        if not should_retry:
+        # Only increment failed_tasks counter when permanently failed (retries exhausted)
+        if new_status == "FAILED_PERMANENT":
             dynamodb.update_item(
                 TableName=RUNS_TABLE,
                 Key={"run_id": {"S": run_id}},
@@ -139,7 +140,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return {
             "run_id": run_id,
             "task_id": task_id,
-            "status": "RETRY_SCHEDULED" if should_retry else "FAILED",
+            "status": "RETRY_SCHEDULED" if should_retry else "FAILED_PERMANENT",
             "retry_count": new_retry_count,
             "error_message": f"{error_type}: {error_cause[:200]}",
         }

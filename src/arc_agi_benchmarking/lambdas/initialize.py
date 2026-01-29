@@ -21,7 +21,7 @@ logger.setLevel(logging.INFO)
 
 # Environment variables
 RUNS_TABLE = os.environ.get("RUNS_TABLE", "arc_benchmark_runs")
-TASKS_TABLE = os.environ.get("TASKS_TABLE", "arc_benchmark_tasks")
+TASKS_TABLE = os.environ.get("TASKS_TABLE", "arc_task_progress")
 
 
 def get_dynamodb_client():
