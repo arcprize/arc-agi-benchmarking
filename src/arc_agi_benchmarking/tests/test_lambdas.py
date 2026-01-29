@@ -58,7 +58,7 @@ def dynamodb_tables(aws_credentials):
 
         # Create tasks table
         dynamodb.create_table(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeySchema=[
                 {"AttributeName": "run_id", "KeyType": "HASH"},
                 {"AttributeName": "task_id", "KeyType": "RANGE"},
@@ -104,7 +104,7 @@ class TestInitializeHandler:
             BillingMode="PAY_PER_REQUEST",
         )
         dynamodb.create_table(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeySchema=[
                 {"AttributeName": "run_id", "KeyType": "HASH"},
                 {"AttributeName": "task_id", "KeyType": "RANGE"},
@@ -145,7 +145,7 @@ class TestInitializeHandler:
 
         # Verify task records created
         tasks_response = dynamodb.query(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeyConditionExpression="run_id = :run_id",
             ExpressionAttributeValues={":run_id": {"S": result["run_id"]}},
         )
@@ -164,7 +164,7 @@ class TestInitializeHandler:
             BillingMode="PAY_PER_REQUEST",
         )
         dynamodb.create_table(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeySchema=[
                 {"AttributeName": "run_id", "KeyType": "HASH"},
                 {"AttributeName": "task_id", "KeyType": "RANGE"},
@@ -191,7 +191,7 @@ class TestInitializeHandler:
         # Verify all tasks created
         assert result["total_tasks"] == 50
         tasks_response = dynamodb.query(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeyConditionExpression="run_id = :run_id",
             ExpressionAttributeValues={":run_id": {"S": result["run_id"]}},
         )
@@ -214,7 +214,7 @@ class TestHandleErrorHandler:
             BillingMode="PAY_PER_REQUEST",
         )
         dynamodb.create_table(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeySchema=[
                 {"AttributeName": "run_id", "KeyType": "HASH"},
                 {"AttributeName": "task_id", "KeyType": "RANGE"},
@@ -236,7 +236,7 @@ class TestHandleErrorHandler:
             },
         )
         dynamodb.put_item(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             Item={
                 "run_id": {"S": "test-run"},
                 "task_id": {"S": "task1"},
@@ -263,13 +263,14 @@ class TestHandleErrorHandler:
         assert result["status"] == "RETRY_SCHEDULED"
         assert result["retry_count"] == 1
 
-        # Verify task updated
+        # Verify task updated - status is FAILED (retryable) not PENDING
+        # Note: Step Functions Map doesn't re-queue, so we mark as FAILED not PENDING
         task_response = dynamodb.get_item(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             Key={"run_id": {"S": "test-run"}, "task_id": {"S": "task1"}},
         )
         assert task_response["Item"]["retry_count"]["N"] == "1"
-        assert task_response["Item"]["status"]["S"] == "PENDING"
+        assert task_response["Item"]["status"]["S"] == "FAILED"
 
     @pytest.mark.skipif(not HAS_MOTO, reason="moto not installed")
     @mock_aws
@@ -284,7 +285,7 @@ class TestHandleErrorHandler:
             BillingMode="PAY_PER_REQUEST",
         )
         dynamodb.create_table(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeySchema=[
                 {"AttributeName": "run_id", "KeyType": "HASH"},
                 {"AttributeName": "task_id", "KeyType": "RANGE"},
@@ -306,7 +307,7 @@ class TestHandleErrorHandler:
             },
         )
         dynamodb.put_item(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             Item={
                 "run_id": {"S": "test-run"},
                 "task_id": {"S": "task1"},
@@ -326,16 +327,16 @@ class TestHandleErrorHandler:
         # Execute
         result = handler(event, None)
 
-        # Verify marked as failed
-        assert result["status"] == "FAILED"
+        # Verify marked as permanently failed
+        assert result["status"] == "FAILED_PERMANENT"
         assert result["retry_count"] == 3
 
         # Verify task status
         task_response = dynamodb.get_item(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             Key={"run_id": {"S": "test-run"}, "task_id": {"S": "task1"}},
         )
-        assert task_response["Item"]["status"]["S"] == "FAILED"
+        assert task_response["Item"]["status"]["S"] == "FAILED_PERMANENT"
 
         # Verify run's failed_tasks incremented
         run_response = dynamodb.get_item(
@@ -361,7 +362,7 @@ class TestAggregateHandler:
             BillingMode="PAY_PER_REQUEST",
         )
         dynamodb.create_table(
-            TableName="arc_benchmark_tasks",
+            TableName="arc_task_progress",
             KeySchema=[
                 {"AttributeName": "run_id", "KeyType": "HASH"},
                 {"AttributeName": "task_id", "KeyType": "RANGE"},
@@ -393,7 +394,7 @@ class TestAggregateHandler:
         ]
         for task in tasks:
             dynamodb.put_item(
-                TableName="arc_benchmark_tasks",
+                TableName="arc_task_progress",
                 Item={
                     "run_id": {"S": "test-run"},
                     "task_id": {"S": task["task_id"]},

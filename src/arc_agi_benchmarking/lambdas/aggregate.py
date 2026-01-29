@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 
 # Environment variables
 RUNS_TABLE = os.environ.get("RUNS_TABLE", "arc_benchmark_runs")
-TASKS_TABLE = os.environ.get("TASKS_TABLE", "arc_benchmark_tasks")
+TASKS_TABLE = os.environ.get("TASKS_TABLE", "arc_task_progress")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 
 
@@ -122,6 +122,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             task_id = task.get("task_id", {"S": "unknown"})["S"]
             status = task.get("status", {"S": "UNKNOWN"})["S"]
             cost = Decimal(task.get("cost_usd", {"N": "0"})["N"])
+            # Note: is_correct is populated by a separate scoring step after the run.
+            # During initial aggregation, it will be False/missing for all tasks.
             is_correct = task.get("is_correct", {"BOOL": False}).get("BOOL", False)
             result_s3_key = task.get("result_s3_key", {"S": ""})["S"]
 
@@ -131,7 +133,8 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 completed_count += 1
                 if is_correct:
                     correct_count += 1
-            elif status == "FAILED":
+            elif status in ("FAILED", "FAILED_PERMANENT"):
+                # Count both retryable failures and permanent failures
                 failed_count += 1
 
             task_results.append(
