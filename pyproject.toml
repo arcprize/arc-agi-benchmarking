@@ -70,5 +70,8 @@ test = [
     "moto>=5.0.0"
 ]
 
+[project.scripts]
+arc-batch-worker = "arc_agi_benchmarking.batch_worker:main"
+
 [project.urls]
 Home = "https://github.com/arcprize/model_baseline"

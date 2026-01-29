@@ -1,0 +1,63 @@
+{
+  "_comment": "DynamoDB table definitions for ARC Benchmark",
+  "_usage": "aws dynamodb create-table --cli-input-json file://dynamodb-tables.json",
+  
+  "tables": [
+    {
+      "TableName": "arc_benchmark_runs",
+      "KeySchema": [
+        {"AttributeName": "run_id", "KeyType": "HASH"}
+      ],
+      "AttributeDefinitions": [
+        {"AttributeName": "run_id", "AttributeType": "S"},
+        {"AttributeName": "config_name", "AttributeType": "S"},
+        {"AttributeName": "created_at", "AttributeType": "S"}
+      ],
+      "GlobalSecondaryIndexes": [
+        {
+          "IndexName": "config-created-index",
+          "KeySchema": [
+            {"AttributeName": "config_name", "KeyType": "HASH"},
+            {"AttributeName": "created_at", "KeyType": "RANGE"}
+          ],
+          "Projection": {"ProjectionType": "ALL"}
+        }
+      ],
+      "BillingMode": "PAY_PER_REQUEST",
+      "Tags": [
+        {"Key": "Project", "Value": "arc-agi-benchmarking"},
+        {"Key": "Environment", "Value": "production"}
+      ]
+    },
+    {
+      "TableName": "arc_task_progress",
+      "KeySchema": [
+        {"AttributeName": "run_id", "KeyType": "HASH"},
+        {"AttributeName": "task_id", "KeyType": "RANGE"}
+      ],
+      "AttributeDefinitions": [
+        {"AttributeName": "run_id", "AttributeType": "S"},
+        {"AttributeName": "task_id", "AttributeType": "S"}
+      ],
+      "BillingMode": "PAY_PER_REQUEST",
+      "Tags": [
+        {"Key": "Project", "Value": "arc-agi-benchmarking"},
+        {"Key": "Environment", "Value": "production"}
+      ]
+    },
+    {
+      "TableName": "arc_rate_limits",
+      "KeySchema": [
+        {"AttributeName": "provider", "KeyType": "HASH"}
+      ],
+      "AttributeDefinitions": [
+        {"AttributeName": "provider", "AttributeType": "S"}
+      ],
+      "BillingMode": "PAY_PER_REQUEST",
+      "Tags": [
+        {"Key": "Project", "Value": "arc-agi-benchmarking"},
+        {"Key": "Environment", "Value": "production"}
+      ]
+    }
+  ]
+}

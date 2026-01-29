@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "_comment": "AWS Batch Job Definition for ARC Benchmark Tasks",
+  "_usage": "aws batch register-job-definition --cli-input-json file://batch-job-definition.json",
+
+  "jobDefinitionName": "arc-benchmark-task",
+  "type": "container",
+  "platformCapabilities": ["FARGATE"],
+  
+  "containerProperties": {
+    "image": "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/arc-agi-benchmarking:latest",
+    "resourceRequirements": [
+      {"type": "VCPU", "value": "1"},
+      {"type": "MEMORY", "value": "2048"}
+    ],
+    "jobRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ArcBenchmarkBatchRole",
+    "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ArcBenchmarkBatchExecutionRole",
+    
+    "environment": [
+      {"name": "S3_BUCKET", "value": "arc-benchmarks"},
+      {"name": "S3_TASKS_PREFIX", "value": "tasks"},
+      {"name": "AWS_REGION", "value": "${AWS_REGION}"},
+      {"name": "DYNAMODB_RUNS_TABLE", "value": "arc_benchmark_runs"},
+      {"name": "DYNAMODB_TASKS_TABLE", "value": "arc_task_progress"},
+      {"name": "DYNAMODB_RATE_LIMIT_TABLE", "value": "arc_rate_limits"},
+      {"name": "MAX_RETRIES", "value": "3"},
+      {"name": "REQUEST_TIMEOUT", "value": "300"}
+    ],
+    
+    "secrets": [
+      {"name": "OPENAI_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:OPENAI_API_KEY::"},
+      {"name": "ANTHROPIC_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:ANTHROPIC_API_KEY::"},
+      {"name": "GOOGLE_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:GOOGLE_API_KEY::"},
+      {"name": "DEEPSEEK_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:DEEPSEEK_API_KEY::"},
+      {"name": "XAI_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:XAI_API_KEY::"},
+      {"name": "FIREWORKS_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:FIREWORKS_API_KEY::"},
+      {"name": "OPENROUTER_API_KEY", "valueFrom": "arn:aws:secretsmanager:${AWS_REGION}:${AWS_ACCOUNT_ID}:secret:arc-benchmark/api-keys:OPENROUTER_API_KEY::"}
+    ],
+    
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/aws/batch/arc-benchmark",
+        "awslogs-region": "${AWS_REGION}",
+        "awslogs-stream-prefix": "task"
+      }
+    },
+    
+    "networkConfiguration": {
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  
+  "retryStrategy": {
+    "attempts": 3,
+    "evaluateOnExit": [
+      {"onStatusReason": "Host EC2*", "action": "RETRY"},
+      {"onReason": "Rate*", "action": "RETRY"},
+      {"onReason": "Timeout*", "action": "RETRY"},
+      {"onExitCode": "1", "action": "RETRY"},
+      {"onExitCode": "0", "action": "EXIT"},
+      {"onExitCode": "2", "action": "EXIT"}
+    ]
+  },
+  
+  "timeout": {
+    "attemptDurationSeconds": 1800
+  },
+  
+  "tags": {
+    "Project": "arc-agi-benchmarking",
+    "Environment": "production"
+  }
+}
