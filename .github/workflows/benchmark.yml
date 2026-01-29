@@ -21,6 +21,7 @@ on:
           - sample
           - evaluation
           - training
+          - private
       task_list:
         description: 'Optional: Comma-separated task IDs (leave empty for all tasks)'
         required: false
@@ -95,9 +96,9 @@ jobs:
         id: tasks
         run: |
           set -euo pipefail
-          
-          # List tasks from S3 bucket
-          TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
+
+          # List tasks from S3 bucket (auto-trigger always uses evaluation)
+          TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/evaluation/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
           TASK_COUNT=$(echo "$TASKS" | jq length)
           
           echo "Found $TASK_COUNT tasks"
@@ -182,8 +183,8 @@ jobs:
             # Use provided task list
             TASKS=$(echo "${{ inputs.task_list }}" | tr ',' '\n' | jq -R . | jq -s .)
           else
-            # Get all tasks from S3
-            TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
+            # Get all tasks from S3 for the specified data source
+            TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/${{ inputs.data_source }}/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
           fi
           
           TASK_COUNT=$(echo "$TASKS" | jq length)
