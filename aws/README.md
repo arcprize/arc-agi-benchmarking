@@ -141,6 +141,56 @@ aws batch create-job-queue \
 aws batch register-job-definition --cli-input-json file://batch-job-definition.json
 ```
 
+## Local Testing with LocalStack
+
+You can test the batch worker locally without deploying to AWS using [LocalStack](https://localstack.cloud/).
+
+### Prerequisites
+
+```bash
+pip install localstack awscli-local boto3
+```
+
+### Start LocalStack
+
+```bash
+# In a separate terminal
+localstack start
+```
+
+### Run the Integration Test
+
+```bash
+python scripts/test_batch_worker_integration.py
+```
+
+This script will:
+1. Create DynamoDB tables in LocalStack
+2. Create an S3 bucket and upload a sample task
+3. Create a task record for the worker to claim
+4. Run the batch worker against LocalStack
+5. Verify the results in DynamoDB and S3
+
+### Manual Testing with LocalStack
+
+```bash
+# Set environment variables
+export RUN_ID="test-run-001"
+export TASK_ID="66e6c45b"
+export CONFIG_NAME="random-baseline"
+export S3_BUCKET="arc-benchmark-test"
+export AWS_REGION="us-west-2"
+export DYNAMODB_RUNS_TABLE="arc_benchmark_runs"
+export DYNAMODB_TASKS_TABLE="arc_benchmark_tasks"
+export DYNAMODB_RATE_LIMIT_TABLE="arc_rate_limits"
+export AWS_ENDPOINT_URL="http://localhost:4566"
+export AWS_ACCESS_KEY_ID="test"
+export AWS_SECRET_ACCESS_KEY="test"
+
+# Run the batch worker
+python -m arc_agi_benchmarking.batch_worker
+```
+
 ## Running a Benchmark
 
 ### Submit Individual Task
