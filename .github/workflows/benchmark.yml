@@ -83,6 +83,7 @@ jobs:
       fail-fast: false
       matrix:
         config: ${{ fromJson(needs.detect-changes.outputs.configs_to_run) }}
+        data_source: [evaluation, private]
     steps:
       - uses: actions/checkout@v4
 
@@ -97,8 +98,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # List tasks from S3 bucket (auto-trigger always uses evaluation)
-          TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/evaluation/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
+          # List tasks from S3 bucket for this data source
+          TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/${{ matrix.data_source }}/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
           TASK_COUNT=$(echo "$TASKS" | jq length)
           
           echo "Found $TASK_COUNT tasks"
@@ -114,15 +115,22 @@ jobs:
         id: start_execution
         run: |
           # Step Functions execution names are limited to 80 characters
-          # Format: bm-{run_id}-{attempt}-{config_or_truncated+hash}
+          # Format: bm-{run_id}-{attempt}-{datasrc_abbrev}-{config_or_truncated+hash}
           RUN_ID="${{ github.run_id }}"
           ATTEMPT="${{ github.run_attempt }}"
           CONFIG="${{ matrix.config }}"
-          PREFIX="bm-${RUN_ID}-${ATTEMPT}-"
+          DATA_SOURCE="${{ matrix.data_source }}"
+          # Abbreviate data source: evaluation=ev, private=pr
+          case "$DATA_SOURCE" in
+            evaluation) DS_ABBREV="ev" ;;
+            private) DS_ABBREV="pr" ;;
+            *) DS_ABBREV="${DATA_SOURCE:0:2}" ;;
+          esac
+          PREFIX="bm-${RUN_ID}-${ATTEMPT}-${DS_ABBREV}-"
           MAX_LEN=80
           HASH_LEN=8
           RAW_NAME="${PREFIX}${CONFIG}"
-          
+
           if [ ${#RAW_NAME} -le ${MAX_LEN} ]; then
             EXECUTION_NAME="${RAW_NAME}"
           else
@@ -134,20 +142,20 @@ jobs:
             TRUNCATED_CONFIG="${CONFIG:0:${MAX_SUFFIX_LEN}}"
             EXECUTION_NAME="${PREFIX}${TRUNCATED_CONFIG}-${HASH}"
           fi
-          
+
           echo "Execution name: $EXECUTION_NAME (${#EXECUTION_NAME} chars)"
-          
+
           RESPONSE=$(aws stepfunctions start-execution \
             --state-machine-arn "arn:aws:states:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:stateMachine:arc-benchmark-sandbox-teal-orchestrator" \
             --name "$EXECUTION_NAME" \
             --input '{
               "config_name": "${{ matrix.config }}",
-              "data_source": "evaluation",
+              "data_source": "${{ matrix.data_source }}",
               "task_ids": ${{ steps.tasks.outputs.task_ids }},
               "triggered_by": "${{ github.actor }}",
               "commit_sha": "${{ github.sha }}"
             }')
-          
+
           EXECUTION_ARN=$(echo $RESPONSE | jq -r '.executionArn')
           echo "execution_arn=$EXECUTION_ARN" >> $GITHUB_OUTPUT
           echo "execution_name=$EXECUTION_NAME" >> $GITHUB_OUTPUT
@@ -157,6 +165,7 @@ jobs:
           echo "## Benchmark Started" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Config**: ${{ matrix.config }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Data Source**: ${{ matrix.data_source }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Triggered by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -201,15 +210,24 @@ jobs:
         id: start_execution
         run: |
           # Step Functions execution names are limited to 80 characters
-          # Format: bm-{run_id}-{attempt}-{config_or_truncated+hash}
+          # Format: bm-{run_id}-{attempt}-{datasrc_abbrev}-{config_or_truncated+hash}
           RUN_ID="${{ github.run_id }}"
           ATTEMPT="${{ github.run_attempt }}"
           CONFIG="${{ inputs.config_name }}"
-          PREFIX="bm-${RUN_ID}-${ATTEMPT}-"
+          DATA_SOURCE="${{ inputs.data_source }}"
+          # Abbreviate data source: evaluation=ev, private=pr, sample=sa, training=tr
+          case "$DATA_SOURCE" in
+            evaluation) DS_ABBREV="ev" ;;
+            private) DS_ABBREV="pr" ;;
+            sample) DS_ABBREV="sa" ;;
+            training) DS_ABBREV="tr" ;;
+            *) DS_ABBREV="${DATA_SOURCE:0:2}" ;;
+          esac
+          PREFIX="bm-${RUN_ID}-${ATTEMPT}-${DS_ABBREV}-"
           MAX_LEN=80
           HASH_LEN=8
           RAW_NAME="${PREFIX}${CONFIG}"
-          
+
           if [ ${#RAW_NAME} -le ${MAX_LEN} ]; then
             EXECUTION_NAME="${RAW_NAME}"
           else
@@ -221,9 +239,9 @@ jobs:
             TRUNCATED_CONFIG="${CONFIG:0:${MAX_SUFFIX_LEN}}"
             EXECUTION_NAME="${PREFIX}${TRUNCATED_CONFIG}-${HASH}"
           fi
-          
+
           echo "Execution name: $EXECUTION_NAME (${#EXECUTION_NAME} chars)"
-          
+
           RESPONSE=$(aws stepfunctions start-execution \
             --state-machine-arn "arn:aws:states:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:stateMachine:arc-benchmark-sandbox-teal-orchestrator" \
             --name "$EXECUTION_NAME" \
@@ -234,7 +252,7 @@ jobs:
               "triggered_by": "${{ github.actor }}",
               "commit_sha": "${{ github.sha }}"
             }')
-          
+
           EXECUTION_ARN=$(echo $RESPONSE | jq -r '.executionArn')
           echo "execution_arn=$EXECUTION_ARN" >> $GITHUB_OUTPUT
           echo "execution_name=$EXECUTION_NAME" >> $GITHUB_OUTPUT
@@ -249,5 +267,5 @@ jobs:
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "[View Execution in AWS Console](https://console.aws.amazon.com/states/home?region=${{ env.AWS_REGION }}#/executions/details/${{ steps.start_execution.outputs.execution_arn }})" >> $GITHUB_STEP_SUMMARY
-          
-          echo "::notice::Benchmark started for ${{ inputs.config_name }}. View at: https://console.aws.amazon.com/states/home?region=${{ env.AWS_REGION }}#/executions/details/${{ steps.start_execution.outputs.execution_arn }}"
+
+          echo "::notice::Benchmark started for ${{ inputs.config_name }} (${{ inputs.data_source }}). View at: https://console.aws.amazon.com/states/home?region=${{ env.AWS_REGION }}#/executions/details/${{ steps.start_execution.outputs.execution_arn }}"
