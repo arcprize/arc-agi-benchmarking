@@ -161,7 +161,7 @@ localstack start
 ### Run the Integration Test
 
 ```bash
-python scripts/test_batch_worker_integration.py
+python scripts/run_batch_worker_integration.py
 ```
 
 This script will:
