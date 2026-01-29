@@ -94,10 +94,20 @@ jobs:
       - name: Get task list from S3
         id: tasks
         run: |
+          set -euo pipefail
+          
           # List tasks from S3 bucket
           TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
+          TASK_COUNT=$(echo "$TASKS" | jq length)
+          
+          echo "Found $TASK_COUNT tasks"
+          
+          if [ "$TASK_COUNT" -eq 0 ]; then
+            echo "::error::No tasks found in S3 bucket. Aborting."
+            exit 1
+          fi
+          
           echo "task_ids=$TASKS" >> $GITHUB_OUTPUT
-          echo "Found $(echo $TASKS | jq length) tasks"
 
       - name: Start Step Functions execution
         id: start_execution
@@ -166,6 +176,8 @@ jobs:
       - name: Get task list
         id: tasks
         run: |
+          set -euo pipefail
+          
           if [ -n "${{ inputs.task_list }}" ]; then
             # Use provided task list
             TASKS=$(echo "${{ inputs.task_list }}" | tr ',' '\n' | jq -R . | jq -s .)
@@ -173,8 +185,16 @@ jobs:
             # Get all tasks from S3
             TASKS=$(aws s3 ls s3://${{ secrets.S3_BUCKET }}/tasks/ | awk '{print $4}' | sed 's/.json//' | grep -v '^$' | jq -R . | jq -s .)
           fi
+          
+          TASK_COUNT=$(echo "$TASKS" | jq length)
+          echo "Found $TASK_COUNT tasks"
+          
+          if [ "$TASK_COUNT" -eq 0 ]; then
+            echo "::error::No tasks found. Check task_list input or S3 bucket."
+            exit 1
+          fi
+          
           echo "task_ids=$TASKS" >> $GITHUB_OUTPUT
-          echo "Found $(echo $TASKS | jq length) tasks"
 
       - name: Start Step Functions execution
         id: start_execution

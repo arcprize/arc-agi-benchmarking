@@ -317,10 +317,17 @@ class TestGetFileAtRef:
         result = get_file_at_ref("some/file.yml", NULL_SHA)
         assert result is None
 
-    def test_partial_null_sha_returns_none(self):
-        """Test that partial null SHA also returns None."""
-        result = get_file_at_ref("some/file.yml", "0000000000")
-        assert result is None
+    @patch("subprocess.run")
+    def test_partial_zeros_sha_is_valid(self, mock_run):
+        """Test that a SHA starting with zeros is treated as valid (not null)."""
+        # A legitimate commit can start with zeros - should not be treated as null
+        mock_run.return_value = MagicMock(stdout="file content", returncode=0)
+        
+        result = get_file_at_ref("some/file.yml", "0000000abc123")
+        
+        # Should call git, not return None
+        assert result == "file content"
+        mock_run.assert_called_once()
 
 
 class TestDetectChangedConfigsStrict:
