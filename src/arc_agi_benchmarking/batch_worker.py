@@ -8,6 +8,12 @@ ARC benchmark tasks. It integrates with:
 - DynamoDB for distributed progress tracking
 - Distributed rate limiting across workers
 
+Supports both public and private datasets:
+- Public ARC-AGI-2 data: DATA_SOURCE=evaluation or DATA_SOURCE=training
+- Private test data: DATA_SOURCE=private
+
+Task data is loaded from s3://{S3_BUCKET}/tasks/{DATA_SOURCE}/{TASK_ID}.json
+
 Environment variables:
     Required:
         RUN_ID: The benchmark run ID (from DynamoDB)
@@ -16,8 +22,9 @@ Environment variables:
         S3_BUCKET: S3 bucket for data and results
 
     Optional:
+        DATA_SOURCE: Dataset to use - evaluation, training, or private (default: evaluation)
         S3_PREFIX: S3 prefix for this run (default: runs/{RUN_ID})
-        S3_TASKS_PREFIX: S3 prefix for task data (default: tasks)
+        S3_TASKS_PREFIX: S3 prefix for task data (default: tasks/{DATA_SOURCE})
         AWS_REGION: AWS region (default: us-west-2)
         DYNAMODB_RUNS_TABLE: DynamoDB runs table (default: arc_benchmark_runs)
         DYNAMODB_TASKS_TABLE: DynamoDB tasks table (default: arc_task_progress)
@@ -57,7 +64,10 @@ class BatchWorkerConfig:
 
         # Optional with defaults
         self.s3_prefix = os.environ.get("S3_PREFIX", f"runs/{self.run_id}")
-        self.s3_tasks_prefix = os.environ.get("S3_TASKS_PREFIX", "tasks")
+        self.data_source = os.environ.get("DATA_SOURCE", "evaluation")
+        self.s3_tasks_prefix = os.environ.get(
+            "S3_TASKS_PREFIX", f"tasks/{self.data_source}"
+        )
         self.aws_region = os.environ.get("AWS_REGION", "us-west-2")
 
         # DynamoDB tables
