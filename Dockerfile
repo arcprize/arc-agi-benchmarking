@@ -33,6 +33,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency files first (for better layer caching)
 COPY pyproject.toml ./
 
+# Copy config files needed at runtime
+COPY provider_config.yml ./
+
 # Copy source code
 COPY src/ src/
 

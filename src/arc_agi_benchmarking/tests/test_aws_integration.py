@@ -378,9 +378,10 @@ class TestDynamoDBProgressManager:
         task = tasks_table.get_item(Key={"run_id": run_id, "task_id": "task_1"})["Item"]
         assert task["status"] == DynamoDBTaskStatus.FAILED_PERMANENT
 
-        # Verify run's failed_tasks count was incremented
+        # Note: failed_tasks counter is NOT incremented by mark_failed() -
+        # that's done by the handle_error Lambda to avoid double-counting.
         run = manager.get_run(run_id)
-        assert run["failed_tasks"] == 1
+        assert run["failed_tasks"] == 0
 
     @mock_aws
     def test_failed_permanent_status_constant(self):

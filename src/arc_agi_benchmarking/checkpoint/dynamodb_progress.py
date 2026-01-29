@@ -313,18 +313,10 @@ class DynamoDBProgressManager:
             logger.debug(f"Contention on mark_failed for {task_id}, retrying")
             return self.mark_failed(run_id, task_id, error, max_retries)
 
-        # Update run's failed count only if retries are exhausted
+        # Note: We don't increment failed_tasks here - that's done by the
+        # handle_error Lambda to avoid double-counting when Step Functions
+        # also catches the failure.
         if retries_exhausted:
-            self._runs_table.update_item(
-                Key={"run_id": run_id},
-                UpdateExpression=(
-                    "SET failed_tasks = failed_tasks + :one, updated_at = :now"
-                ),
-                ExpressionAttributeValues={
-                    ":one": 1,
-                    ":now": now,
-                },
-            )
             logger.warning(
                 f"Task {task_id} failed permanently after {new_retry_count} retries"
             )
