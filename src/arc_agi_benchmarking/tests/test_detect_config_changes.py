@@ -4,7 +4,7 @@ import pytest
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "scripts"))
 
 from detect_config_changes import (
     parse_models_yaml,
