@@ -1,0 +1,57 @@
+name: Trigger Benchmarks
+
+on:
+  push:
+    paths:
+      - 'src/arc_agi_benchmarking/models.yml'
+    branches:
+      - main
+
+jobs:
+  detect-and-trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Detect changed configs
+        id: detect
+        run: |
+          BASE_REF="${{ github.event.before }}"
+          HEAD_REF="${{ github.sha }}"
+
+          CHANGED_CONFIGS=$(python scripts/detect_config_changes.py --base "$BASE_REF" --head "$HEAD_REF")
+          echo "Detected configs: $CHANGED_CONFIGS"
+
+          if [ "$CHANGED_CONFIGS" = "[]" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "configs=$CHANGED_CONFIGS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Trigger private repo workflow
+        if: steps.detect.outputs.has_changes == 'true'
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.BENCHMARK_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/arcprize/arc-benchmark-infra/dispatches \
+            -d '{
+              "event_type": "benchmark-trigger",
+              "client_payload": {
+                "configs": ${{ steps.detect.outputs.configs }},
+                "triggered_by": "${{ github.actor }}",
+                "commit_sha": "${{ github.sha }}"
+              }
+            }'
+          echo "Triggered benchmark for configs: ${{ steps.detect.outputs.configs }}"
