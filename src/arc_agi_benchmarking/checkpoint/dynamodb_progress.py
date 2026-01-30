@@ -3,9 +3,12 @@
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
+
+# Default timeout for stale IN_PROGRESS tasks (15 minutes)
+DEFAULT_STALE_TASK_TIMEOUT_SECONDS = 900
 
 logger = logging.getLogger(__name__)
 
@@ -117,43 +120,98 @@ class DynamoDBProgressManager:
         response = self._runs_table.get_item(Key={"run_id": run_id})
         return response.get("Item")
 
-    def get_pending_tasks(self, run_id: str) -> list[str]:
-        """Get list of tasks that are pending or need retry.
+    def get_pending_tasks(
+        self,
+        run_id: str,
+        stale_timeout_seconds: int = DEFAULT_STALE_TASK_TIMEOUT_SECONDS,
+    ) -> list[str]:
+        """Get list of tasks that are pending, need retry, or are stale.
 
-        Handles pagination for large task lists (>1MB response).
+        A task is considered stale if it's IN_PROGRESS but hasn't been updated
+        within the timeout period. This handles workers that die mid-task.
+
+        Args:
+            run_id: The run ID.
+            stale_timeout_seconds: Seconds before an IN_PROGRESS task is
+                considered stale. Default 15 minutes. Set to 0 to disable.
+
+        Returns:
+            List of task IDs that can be claimed.
         """
         task_ids = []
-        query_kwargs = {
-            "KeyConditionExpression": "run_id = :rid",
-            "FilterExpression": "#status IN (:pending, :failed)",
-            "ExpressionAttributeNames": {"#status": "status"},
-            "ExpressionAttributeValues": {
+
+        # Calculate stale cutoff timestamp (ISO format strings sort correctly)
+        stale_cutoff = None
+        if stale_timeout_seconds > 0:
+            stale_cutoff = (
+                datetime.now(timezone.utc) - timedelta(seconds=stale_timeout_seconds)
+            ).isoformat()
+
+        # Build filter expression
+        # Tasks are claimable if: PENDING, FAILED, or (IN_PROGRESS and stale)
+        if stale_cutoff:
+            filter_expr = (
+                "#status = :pending OR #status = :failed OR "
+                "(#status = :in_progress AND updated_at < :stale_cutoff)"
+            )
+            expr_values = {
                 ":rid": run_id,
                 ":pending": DynamoDBTaskStatus.PENDING,
                 ":failed": DynamoDBTaskStatus.FAILED,
-            },
+                ":in_progress": DynamoDBTaskStatus.IN_PROGRESS,
+                ":stale_cutoff": stale_cutoff,
+            }
+        else:
+            filter_expr = "#status IN (:pending, :failed)"
+            expr_values = {
+                ":rid": run_id,
+                ":pending": DynamoDBTaskStatus.PENDING,
+                ":failed": DynamoDBTaskStatus.FAILED,
+            }
+
+        query_kwargs = {
+            "KeyConditionExpression": "run_id = :rid",
+            "FilterExpression": filter_expr,
+            "ExpressionAttributeNames": {"#status": "status"},
+            "ExpressionAttributeValues": expr_values,
         }
 
         while True:
             response = self._tasks_table.query(**query_kwargs)
             task_ids.extend(item["task_id"] for item in response.get("Items", []))
 
-            # Check for more pages
             if "LastEvaluatedKey" not in response:
                 break
             query_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
 
         return task_ids
 
-    def claim_task(self, run_id: str, task_id: str) -> bool:
+    def claim_task(
+        self,
+        run_id: str,
+        task_id: str,
+        stale_timeout_seconds: int = DEFAULT_STALE_TASK_TIMEOUT_SECONDS,
+    ) -> bool:
         """Attempt to claim a task for processing.
 
-        Uses conditional update to prevent race conditions.
+        Uses conditional update to prevent race conditions. A task can be claimed if:
+        - Status is PENDING (new task)
+        - Status is FAILED (retryable failure)
+        - Status is IN_PROGRESS but stale (worker died)
+
+        Args:
+            run_id: The run ID.
+            task_id: The task ID.
+            stale_timeout_seconds: Seconds before an IN_PROGRESS task can be
+                reclaimed. Default 15 minutes.
 
         Returns:
             True if the task was claimed, False otherwise.
         """
         now = datetime.now(timezone.utc).isoformat()
+        stale_cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=stale_timeout_seconds)
+        ).isoformat()
 
         try:
             self._tasks_table.update_item(
@@ -164,20 +222,25 @@ class DynamoDBProgressManager:
                     "started_at = :now, "
                     "updated_at = :now"
                 ),
-                ConditionExpression="#status = :pending OR #status = :failed",
+                ConditionExpression=(
+                    "#status = :pending OR #status = :failed OR "
+                    "(#status = :in_progress_status AND updated_at < :stale_cutoff)"
+                ),
                 ExpressionAttributeNames={"#status": "status"},
                 ExpressionAttributeValues={
                     ":in_progress": DynamoDBTaskStatus.IN_PROGRESS,
+                    ":in_progress_status": DynamoDBTaskStatus.IN_PROGRESS,
                     ":pending": DynamoDBTaskStatus.PENDING,
                     ":failed": DynamoDBTaskStatus.FAILED,
                     ":worker": self._worker_id,
                     ":now": now,
+                    ":stale_cutoff": stale_cutoff,
                 },
             )
             logger.info(f"Claimed task {task_id} in run {run_id}")
             return True
         except self._dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
-            logger.debug(f"Failed to claim task {task_id} (already claimed)")
+            logger.debug(f"Failed to claim task {task_id} (already claimed or not stale)")
             return False
 
     def mark_completed(

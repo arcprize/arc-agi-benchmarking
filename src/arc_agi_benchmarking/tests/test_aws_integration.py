@@ -2,6 +2,7 @@
 
 import os
 import urllib.error
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -389,6 +390,129 @@ class TestDynamoDBProgressManager:
         from arc_agi_benchmarking.checkpoint.dynamodb_progress import DynamoDBTaskStatus
 
         assert DynamoDBTaskStatus.FAILED_PERMANENT == "FAILED_PERMANENT"
+
+    @mock_aws
+    def test_stale_in_progress_task_returned_by_get_pending(self):
+        """Test that stale IN_PROGRESS tasks are returned for reclaiming."""
+        from arc_agi_benchmarking.checkpoint.dynamodb_progress import (
+            DynamoDBProgressManager,
+        )
+
+        self._create_tables()
+
+        manager = DynamoDBProgressManager(
+            runs_table_name="test_runs",
+            tasks_table_name="test_tasks",
+            region_name="us-west-2",
+        )
+
+        run_id = manager.create_run(
+            config_name="test-config",
+            task_ids=["task_1", "task_2"],
+            data_source="evaluation",
+        )
+
+        # Claim task_1
+        assert manager.claim_task(run_id, "task_1") is True
+
+        # Verify task_1 is NOT returned (it's IN_PROGRESS but not stale)
+        pending = manager.get_pending_tasks(run_id, stale_timeout_seconds=900)
+        assert "task_1" not in pending
+        assert "task_2" in pending
+
+        # Manually set task_1's updated_at to be stale (20 minutes ago)
+        stale_time = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+        tasks_table = boto3.resource("dynamodb", region_name="us-west-2").Table(
+            "test_tasks"
+        )
+        tasks_table.update_item(
+            Key={"run_id": run_id, "task_id": "task_1"},
+            UpdateExpression="SET updated_at = :stale",
+            ExpressionAttributeValues={":stale": stale_time},
+        )
+
+        # Now task_1 should be returned as stale (timeout=15min, task is 20min old)
+        pending = manager.get_pending_tasks(run_id, stale_timeout_seconds=900)
+        assert "task_1" in pending
+        assert "task_2" in pending
+
+    @mock_aws
+    def test_stale_task_can_be_reclaimed(self):
+        """Test that a stale IN_PROGRESS task can be claimed by another worker."""
+        from arc_agi_benchmarking.checkpoint.dynamodb_progress import (
+            DynamoDBProgressManager,
+        )
+
+        self._create_tables()
+
+        manager = DynamoDBProgressManager(
+            runs_table_name="test_runs",
+            tasks_table_name="test_tasks",
+            region_name="us-west-2",
+        )
+
+        run_id = manager.create_run(
+            config_name="test-config",
+            task_ids=["task_1"],
+            data_source="evaluation",
+        )
+
+        # Claim task_1
+        assert manager.claim_task(run_id, "task_1") is True
+
+        # Trying to reclaim immediately should fail (not stale)
+        assert manager.claim_task(run_id, "task_1") is False
+
+        # Manually set task_1's updated_at to be stale
+        stale_time = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat()
+        tasks_table = boto3.resource("dynamodb", region_name="us-west-2").Table(
+            "test_tasks"
+        )
+        tasks_table.update_item(
+            Key={"run_id": run_id, "task_id": "task_1"},
+            UpdateExpression="SET updated_at = :stale",
+            ExpressionAttributeValues={":stale": stale_time},
+        )
+
+        # Now reclaiming should succeed (task is stale)
+        assert manager.claim_task(run_id, "task_1", stale_timeout_seconds=900) is True
+
+    @mock_aws
+    def test_stale_timeout_disabled_with_zero(self):
+        """Test that stale timeout can be disabled by setting to 0."""
+        from arc_agi_benchmarking.checkpoint.dynamodb_progress import (
+            DynamoDBProgressManager,
+        )
+
+        self._create_tables()
+
+        manager = DynamoDBProgressManager(
+            runs_table_name="test_runs",
+            tasks_table_name="test_tasks",
+            region_name="us-west-2",
+        )
+
+        run_id = manager.create_run(
+            config_name="test-config",
+            task_ids=["task_1"],
+            data_source="evaluation",
+        )
+
+        # Claim and make task stale
+        manager.claim_task(run_id, "task_1")
+        stale_time = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        tasks_table = boto3.resource("dynamodb", region_name="us-west-2").Table(
+            "test_tasks"
+        )
+        tasks_table.update_item(
+            Key={"run_id": run_id, "task_id": "task_1"},
+            UpdateExpression="SET updated_at = :stale",
+            ExpressionAttributeValues={":stale": stale_time},
+        )
+
+        # With stale_timeout=0, task should NOT be returned even if old
+        pending = manager.get_pending_tasks(run_id, stale_timeout_seconds=0)
+        assert "task_1" not in pending
 
 
 @pytest.mark.skipif(not BOTO3_AVAILABLE, reason="boto3/moto not installed")
