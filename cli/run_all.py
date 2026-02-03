@@ -119,9 +119,44 @@ def get_model_config(config_name: str):
         MODEL_CONFIG_CACHE[config_name] = read_models_config(config_name)
     return MODEL_CONFIG_CACHE[config_name]
 
-def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) -> AsyncRequestRateLimiter:
-    if provider_name not in PROVIDER_RATE_LIMITERS:
-        if provider_name not in all_provider_limits:
+def get_or_create_rate_limiter(
+    provider_name: str,
+    all_provider_limits: Dict,
+    model_config: Optional[Any] = None
+) -> AsyncRequestRateLimiter:
+    """
+    Get or create a rate limiter, checking for model-level config first.
+    
+    Priority:
+    1. Model-specific rate_limit in models.yml (uses config name as key)
+    2. Provider-level rate limit in provider_config.yml
+    3. Default rate limit
+    """
+    # Check for model-level rate limit first
+    limiter_key = provider_name
+    model_rate_limit = None
+    
+    if model_config is not None:
+        model_rate_limit = model_config.kwargs.get('rate_limit')
+        if model_rate_limit:
+            # Use config name as the limiter key for model-specific limits
+            limiter_key = model_config.name
+    
+    if limiter_key not in PROVIDER_RATE_LIMITERS:
+        if model_rate_limit:
+            # Use model-specific rate limit
+            config_rate = model_rate_limit.get('rate', DEFAULT_RATE_LIMIT_RATE)
+            config_period = model_rate_limit.get('period', DEFAULT_RATE_LIMIT_PERIOD)
+            if config_period <= 0:
+                actual_rate_for_limiter = float('inf')
+                actual_capacity_for_limiter = float('inf')
+                logger.warning(f"Model '{model_config.name}' has period <= 0 in config. Treating as unconstrained.")
+            else:
+                calculated_rps = config_rate / config_period
+                actual_rate_for_limiter = calculated_rps
+                actual_capacity_for_limiter = max(1.0, calculated_rps)
+            logger.info(f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+        elif provider_name not in all_provider_limits:
             logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default ({DEFAULT_RATE_LIMIT_RATE} req/{DEFAULT_RATE_LIMIT_PERIOD}s).")
             default_config_rate = DEFAULT_RATE_LIMIT_RATE
             default_config_period = DEFAULT_RATE_LIMIT_PERIOD
@@ -139,9 +174,9 @@ def get_or_create_rate_limiter(provider_name: str, all_provider_limits: Dict) ->
                 calculated_rps = config_rate / config_period
                 actual_rate_for_limiter = calculated_rps
                 actual_capacity_for_limiter = max(1.0, calculated_rps)
-        logger.info(f"Initializing rate limiter for provider '{provider_name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
-        PROVIDER_RATE_LIMITERS[provider_name] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
-    return PROVIDER_RATE_LIMITERS[provider_name]
+            logger.info(f"Initializing rate limiter for provider '{provider_name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+        PROVIDER_RATE_LIMITERS[limiter_key] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
+    return PROVIDER_RATE_LIMITERS[limiter_key]
 
 
 def get_or_create_circuit_breaker(
@@ -404,7 +439,7 @@ async def main(task_list_file: Optional[str],
         try:
             model_config_obj = get_model_config(config_name)
             provider_name = model_config_obj.provider
-            limiter = get_or_create_rate_limiter(provider_name, all_provider_limits)
+            limiter = get_or_create_rate_limiter(provider_name, all_provider_limits, model_config_obj)
             circuit_breaker = get_or_create_circuit_breaker(provider_name, all_provider_limits, circuit_breaker_threshold)
             task_timeout_val = get_task_timeout(provider_name, all_provider_limits, max_task_timeout)
             async_tasks_to_execute.append(run_single_test_wrapper(

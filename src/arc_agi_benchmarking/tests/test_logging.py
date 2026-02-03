@@ -100,20 +100,20 @@ def test_arctester_log_levels(
 
 def test_orchestrator_rate_limiter_log(caplog):
     """Specifically test if the rate limiter init log is captured."""
-    caplog.set_level(logging.INFO, logger='cli.run_all')
+    caplog.set_level(logging.WARNING, logger='cli.run_all')
     
     # Ensure caches are clear for this specific test
     from cli import run_all
     run_all.PROVIDER_RATE_LIMITERS.clear()
     run_all.MODEL_CONFIG_CACHE.clear()
     
-    # Call the function that logs
+    # Call the function that logs - unknown provider triggers a WARNING
     _ = get_or_create_rate_limiter("test_provider", {})
     
-    # Check if the specific log message exists
-    found = any(rec.getMessage().startswith("Initializing rate limiter for provider 'test_provider'") 
-                for rec in caplog.records if rec.name == 'cli.run_all' and rec.levelno == logging.INFO)
-    assert found, f"Rate limiter init log not found. Logs: {caplog.text}"
+    # Check if the warning log message exists (unknown providers log a warning about using defaults)
+    found = any(rec.getMessage().startswith("No rate limit configuration found for provider 'test_provider'") 
+                for rec in caplog.records if rec.name == 'cli.run_all' and rec.levelno == logging.WARNING)
+    assert found, f"Rate limiter warning log not found. Logs: {caplog.text}"
 
 
 @pytest.mark.parametrize(
