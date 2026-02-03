@@ -1,4 +1,11 @@
 # Prices are in USD per 1 million tokens.
+#
+# Dataset access control:
+#   datasets: ["public-v1", "public-v2"]                              - DEFAULT if not specified
+#   datasets: ["public-v1", "public-v2", "private-v1", "private-v2"]  - includes private (requires explicit opt-in)
+#
+# Private dataset access requires explicit configuration. Models without a 'datasets'
+# field will only have access to public-v1 and public-v2 datasets.
 
 models:
   - name: "random-baseline"

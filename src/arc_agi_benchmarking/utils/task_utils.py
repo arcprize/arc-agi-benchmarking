@@ -88,6 +88,48 @@ def normalize_model_name(name: str) -> str:
     
     return name
 
+# Default datasets if not specified - public v1 and v2 only (private requires explicit opt-in)
+# This ensures private/sensitive data is never sent to a model without explicit configuration.
+DEFAULT_ALLOWED_DATASETS = ["public-v1", "public-v2"]
+
+
+def get_allowed_datasets(config: str) -> list[str]:
+    """
+    Get the list of allowed datasets for a model configuration.
+
+    Args:
+        config: The configuration name (from models.yml)
+
+    Returns:
+        List of allowed dataset identifiers (e.g., ["public-v1", "public-v2", "private-v1", "private-v2"])
+
+    Note:
+        If no 'datasets' field is specified in models.yml, defaults to ["public-v1", "public-v2"].
+        To run on private datasets, the model config MUST explicitly include "private-v1"
+        and/or "private-v2" in the datasets list.
+    """
+    model_config = read_models_config(config)
+    return model_config.kwargs.get('datasets', DEFAULT_ALLOWED_DATASETS)
+
+
+def is_dataset_allowed(config: str, data_source: str) -> bool:
+    """
+    Check if a data source is allowed for a model configuration.
+
+    Args:
+        config: The configuration name (from models.yml)
+        data_source: The data source path (e.g., "public-v1/evaluation", "private-v2/training")
+
+    Returns:
+        True if the data source is allowed, False otherwise
+    """
+    allowed = get_allowed_datasets(config)
+    # Extract the dataset identifier from data_source (first component of path)
+    # e.g., "public-v1/evaluation" -> "public-v1"
+    dataset_id = data_source.split('/')[0]
+    return dataset_id in allowed
+
+
 def read_models_config(config: str) -> ModelConfig:
     """
     Reads and parses both models.yml and models_private.yml configuration files 
