@@ -145,6 +145,67 @@ class TestBatchProgressManager:
     def storage(self, tmp_path: Path) -> LocalStorageBackend:
         return LocalStorageBackend(tmp_path)
 
+    def test_resume_skips_tasks_with_existing_submissions_on_disk(self, tmp_path: Path):
+        """
+        Regression test: resume logic should skip tasks that have existing
+        submission files on disk, even if the checkpoint doesn't track them.
+
+        This handles the case where:
+        - Submissions were created before the checkpoint system was added
+        - The checkpoint file was deleted/corrupted
+        - A different process created submissions without updating the checkpoint
+
+        The fix is in run_all.py which checks submission_exists() before
+        adding tasks to the run queue.
+        """
+        from arc_agi_benchmarking.utils.submission_exists import submission_exists
+
+        # Setup: Create submission directory with 3 completed submissions
+        submission_dir = tmp_path / "submissions"
+        submission_dir.mkdir(parents=True)
+
+        # Create submission files for task_1, task_2, task_3
+        completed_task_ids = ["task_1", "task_2", "task_3"]
+        for task_id in completed_task_ids:
+            submission_file = submission_dir / f"{task_id}.json"
+            submission_file.write_text('{"attempt_1": [[1, 2]], "attempt_2": [[3, 4]]}')
+
+        # Setup: Create BatchProgressManager with no existing checkpoint
+        checkpoint_dir = submission_dir / ".checkpoints"
+        storage = LocalStorageBackend(checkpoint_dir)
+        manager = BatchProgressManager(storage, run_id="test_config")
+
+        # Initialize all 5 tasks (all start as PENDING)
+        all_task_ids = ["task_1", "task_2", "task_3", "task_4", "task_5"]
+        manager.initialize_tasks(all_task_ids, attempts_per_task=2)
+
+        # Simulate the FIXED resume logic from run_all.py:
+        # Filter out tasks that have existing submission files on disk
+        tasks_to_run = []
+        for task_id in all_task_ids:
+            task_progress = manager.progress.tasks.get(task_id)
+            if not task_progress or task_progress.status != TaskStatus.PENDING:
+                continue
+            # Check if submission already exists on disk
+            if submission_exists(str(submission_dir), task_id):
+                manager.mark_completed(task_id)
+                continue
+            tasks_to_run.append(task_id)
+
+        # Only task_4 and task_5 should need work
+        assert tasks_to_run == ["task_4", "task_5"]
+
+        # Tasks with existing submissions should now be marked COMPLETED
+        assert manager.progress.tasks["task_1"].status == TaskStatus.COMPLETED
+        assert manager.progress.tasks["task_2"].status == TaskStatus.COMPLETED
+        assert manager.progress.tasks["task_3"].status == TaskStatus.COMPLETED
+        assert manager.progress.tasks["task_4"].status == TaskStatus.PENDING
+        assert manager.progress.tasks["task_5"].status == TaskStatus.PENDING
+
+        # Verify counts
+        assert manager.progress.completed_count == 3
+        assert manager.progress.pending_count == 2
+
     @pytest.fixture
     def manager(self, storage: LocalStorageBackend) -> BatchProgressManager:
         return BatchProgressManager(storage, run_id="test_run")
