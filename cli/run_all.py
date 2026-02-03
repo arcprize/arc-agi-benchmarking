@@ -21,6 +21,7 @@ if project_root not in sys.path:
 
 from main import ARCTester
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits, get_provider_timeout_config
+from arc_agi_benchmarking.utils.submission_exists import submission_exists
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
@@ -330,7 +331,8 @@ async def main(task_list_file: Optional[str],
         return 1 # Return an error code
 
     # --- Checkpointing Setup ---
-    checkpoint_dir = Path(save_submission_dir) / config_to_test / ".checkpoints"
+    # Note: save_submission_dir is expected to include config name (e.g., submissions/config)
+    checkpoint_dir = Path(save_submission_dir) / ".checkpoints"
     storage = LocalStorageBackend(checkpoint_dir)
     progress_manager = BatchProgressManager(
         storage=storage,
@@ -347,19 +349,29 @@ async def main(task_list_file: Optional[str],
 
     # Determine which tasks to run
     if resume:
-        # Only run pending tasks
-        tasks_to_run = [
-            task_id for task_id in task_ids
-            if progress_manager.progress.tasks.get(task_id) and
-               progress_manager.progress.tasks[task_id].status == TaskStatus.PENDING
-        ]
+        # Only run pending tasks that don't already have submission files on disk
+        tasks_to_run = []
+        skipped_existing_submissions = 0
+        for task_id in task_ids:
+            task_progress = progress_manager.progress.tasks.get(task_id)
+            if not task_progress or task_progress.status != TaskStatus.PENDING:
+                continue
+            # Check if submission already exists on disk (handles pre-checkpoint runs)
+            if submission_exists(save_submission_dir, task_id):
+                progress_manager.mark_completed(task_id)
+                skipped_existing_submissions += 1
+                continue
+            tasks_to_run.append(task_id)
+
         completed_count = progress_manager.progress.completed_count
         failed_count = progress_manager.progress.failed_count
-        if completed_count > 0 or failed_count > 0:
+        if completed_count > 0 or failed_count > 0 or skipped_existing_submissions > 0:
             logger.info(
                 f"Resuming: {completed_count} completed, {failed_count} failed, "
                 f"{len(tasks_to_run)} remaining"
             )
+            if skipped_existing_submissions > 0:
+                logger.info(f"Marked {skipped_existing_submissions} task(s) as completed (existing submissions found on disk)")
     else:
         tasks_to_run = task_ids
         logger.info("Resume disabled - running all tasks")
