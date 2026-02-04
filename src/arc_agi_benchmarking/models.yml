@@ -1513,7 +1513,7 @@ models:
       reasoning:
         enabled: true
     rate_limit:
-      rate: 3
+      rate: 20
       period: 60
     pricing:
       date: "2025-01-27"
