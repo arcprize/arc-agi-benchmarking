@@ -25,8 +25,8 @@ import re
 logger = logging.getLogger(__name__)
 
 # Keys in model_config.kwargs that are for internal use only and should NOT be passed to the API
-# Note: 'reasoning' and 'enable_thinking' at top-level are invalid - use 'extra_body: {...}' instead
-_CONFIG_ONLY_KWARGS = {"rate_limit", "pricing", "reasoning", "enable_thinking"}
+# Note: 'reasoning' and 'background' ARE valid Responses API parameters and should pass through
+_CONFIG_ONLY_KWARGS = {"rate_limit", "pricing", "enable_thinking"}
 
 
 def _filter_api_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:

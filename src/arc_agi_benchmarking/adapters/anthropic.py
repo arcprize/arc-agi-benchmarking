@@ -133,12 +133,21 @@ class AnthropicAdapter(ProviderAdapter):
         """
         Make a raw API call to Anthropic and return the response
         """
-
+        betas = self.model_config.kwargs.get('betas')
+        api_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'betas'}
+        if betas:
+            return self.client.beta.messages.create(
+                model=self.model_config.model_name,
+                betas=betas,
+                messages=messages,
+                tools=tools,
+                **api_kwargs
+            )
         return self.client.messages.create(
             model=self.model_config.model_name,
             messages=messages,
             tools=tools,
-            **self.model_config.kwargs
+            **api_kwargs
         )
 
     def chat_completion_stream(self, messages, tools=[]):
@@ -148,27 +157,37 @@ class AnthropicAdapter(ProviderAdapter):
         """
         logger.debug(f"Starting streaming for Anthropic model: {self.model_config.model_name}")
 
-        # Prepare kwargs for streaming, removing 'stream' to avoid duplication
-        stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'stream'}
+        # Prepare kwargs for streaming, removing 'stream' and 'betas'
+        betas = self.model_config.kwargs.get('betas')
+        stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k not in ('stream', 'betas')}
 
         try:
-            # Create the stream
-            with self.client.messages.stream(
-                model=self.model_config.model_name,
-                messages=messages,
-                tools=tools,
-                **stream_kwargs
-            ) as stream:
-                # Accumulate the complete message
-                # The stream context manager handles all the event processing
-                # and gives us the final message when done
-                final_message = stream.get_final_message()
+            if betas:
+                print ("stream kwargs", stream_kwargs)
+                with self.client.beta.messages.stream(
+                    model=self.model_config.model_name,
+                    betas=betas,
+                    messages=messages,
+                    tools=tools,
+                    **stream_kwargs
+                ) as stream:
+                    final_message = stream.get_final_message()
+            else:
+                with self.client.messages.stream(
+                    model=self.model_config.model_name,
+                    messages=messages,
+                    tools=tools,
+                    **stream_kwargs
+                ) as stream:
+                    final_message = stream.get_final_message()
 
             logger.debug(f"Streaming complete for message ID: {final_message.id}")
+            logger.debug(f"Final message: {final_message}")
             return final_message
 
         except Exception as e:
             logger.error(f"Error during Anthropic streaming: {e}")
+            logger.error(f"Error details: {e.response}")
             raise
 
     def _get_reasoning_summary(self, response: Any) -> str:

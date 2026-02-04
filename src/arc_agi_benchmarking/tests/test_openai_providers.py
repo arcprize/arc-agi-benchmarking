@@ -3,7 +3,7 @@ from unittest.mock import Mock, MagicMock, patch
 import inspect # Added for subclass discovery
 import sys # Added for subclass discovery
 
-from arc_agi_benchmarking.adapters.openai_base import OpenAIBaseAdapter
+from arc_agi_benchmarking.adapters.openai_base import OpenAIBaseAdapter, _filter_api_kwargs
 from arc_agi_benchmarking.adapters.open_ai import OpenAIAdapter
 from arc_agi_benchmarking.adapters.grok import GrokAdapter
 from arc_agi_benchmarking.adapters.deepseek import DeepseekAdapter
@@ -472,6 +472,49 @@ class TestOpenAIBaseProviderLogic:
         with pytest.raises(ValueError, match="Cannot enable both streaming and background for the responses API type"):
             adapter_instance._call_ai_model(prompt)
 
+    def test_responses_api_passes_background_and_reasoning_to_api(self, adapter_instance):
+        """
+        Test that background and reasoning kwargs are passed through to responses.create().
+
+        This is a regression test for a bug where _filter_api_kwargs incorrectly
+        filtered out 'reasoning' (and potentially 'background'), breaking background
+        mode and reasoning configuration for OpenAI Responses API models.
+        """
+        # Set up for responses API with background and reasoning (like gpt-5 configs)
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        adapter_instance.model_config.kwargs = {
+            'background': True,
+            'reasoning': {'effort': 'high'},
+            'max_output_tokens': 100000,
+        }
+
+        # Mock the responses.create call to capture what gets passed
+        mock_response = MagicMock()
+        mock_response.status = "completed"  # Skip polling loop
+        adapter_instance.client.responses.create = MagicMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "Test prompt"}]
+        adapter_instance._responses(messages)
+
+        # Verify responses.create was called
+        adapter_instance.client.responses.create.assert_called_once()
+
+        # Get the kwargs that were passed to the API
+        call_kwargs = adapter_instance.client.responses.create.call_args
+        passed_kwargs = call_kwargs.kwargs if call_kwargs.kwargs else {}
+
+        # The critical assertions: background and reasoning MUST be passed to the API
+        # If these fail, someone likely added them to _CONFIG_ONLY_KWARGS by mistake
+        assert 'background' in passed_kwargs, \
+            "background was filtered out and not passed to responses.create() - check _CONFIG_ONLY_KWARGS"
+        assert passed_kwargs['background'] is True, \
+            "background value was not passed correctly"
+
+        assert 'reasoning' in passed_kwargs, \
+            "reasoning was filtered out and not passed to responses.create() - check _CONFIG_ONLY_KWARGS"
+        assert passed_kwargs['reasoning'] == {'effort': 'high'}, \
+            "reasoning value was not passed correctly"
+
     # --- Tests for extract_json_from_response ---
 
     def test_extract_json_direct_array(self, adapter_class, adapter_instance):
@@ -544,3 +587,59 @@ class TestOpenAIBaseProviderLogic:
             result = adapter_instance.extract_json_from_response("some response")
 
             assert result == [[0, 1, 2], [3, 4, 5]]
+
+
+# --- Tests for _filter_api_kwargs (not parameterized by adapter) ---
+
+class TestFilterApiKwargs:
+    """Tests for the _filter_api_kwargs helper function."""
+
+    def test_filter_removes_config_only_kwargs(self):
+        """Test that config-only kwargs are filtered out but API kwargs are preserved."""
+        kwargs = {
+            "temperature": 0.7,
+            "rate_limit": {"requests_per_minute": 10},
+            "pricing": {"input": 1.0, "output": 2.0},
+            "reasoning": {"effort": "high"},  # Valid Responses API param, should be preserved
+            "enable_thinking": True,
+            "background": True,  # Valid Responses API param, should be preserved
+            "max_tokens": 500,
+        }
+        filtered = _filter_api_kwargs(kwargs)
+
+        # API-passable kwargs should remain (including background and reasoning)
+        assert filtered == {
+            "temperature": 0.7,
+            "reasoning": {"effort": "high"},
+            "background": True,
+            "max_tokens": 500,
+        }
+
+        # Verify config-only kwargs are removed
+        assert "rate_limit" not in filtered
+        assert "pricing" not in filtered
+        assert "enable_thinking" not in filtered
+
+    def test_filter_preserves_background(self):
+        """Test that 'background' is passed through to the API (it's a valid Responses API param)."""
+        kwargs = {
+            "temperature": 0.7,
+            "background": True,
+            "max_output_tokens": 1000,
+        }
+        filtered = _filter_api_kwargs(kwargs)
+
+        assert "background" in filtered
+        assert filtered == {"temperature": 0.7, "background": True, "max_output_tokens": 1000}
+
+    def test_filter_preserves_api_kwargs(self):
+        """Test that valid API kwargs are preserved."""
+        kwargs = {
+            "temperature": 0.5,
+            "top_p": 0.9,
+            "max_output_tokens": 2000,
+            "stop": ["\n"],
+        }
+        filtered = _filter_api_kwargs(kwargs)
+
+        assert filtered == kwargs  # All should be preserved
