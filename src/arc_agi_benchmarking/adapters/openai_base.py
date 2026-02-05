@@ -258,6 +258,10 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
 
+        # reasoning is valid for OpenAI Responses API - re-add if present
+        if "reasoning" in self.model_config.kwargs:
+            api_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
+
         resp = self.client.responses.create(
             model=self.model_config.model_name, input=messages, **api_kwargs
         )
@@ -290,6 +294,10 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         # Prepare kwargs for streaming, removing 'stream' and config-only keys
         api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
         stream_kwargs = {k: v for k, v in api_kwargs.items() if k != "stream"}
+
+        # reasoning is valid for OpenAI Responses API - re-add if present
+        if "reasoning" in self.model_config.kwargs:
+            stream_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
 
         try:
             # Create the stream
