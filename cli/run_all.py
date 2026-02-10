@@ -154,7 +154,8 @@ def get_or_create_rate_limiter(
             else:
                 calculated_rps = config_rate / config_period
                 actual_rate_for_limiter = calculated_rps
-                actual_capacity_for_limiter = max(1.0, calculated_rps)
+                config_capacity = model_rate_limit.get('capacity')
+                actual_capacity_for_limiter = config_capacity if config_capacity else max(1.0, calculated_rps)
             logger.info(f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
         elif provider_name not in all_provider_limits:
             logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default ({DEFAULT_RATE_LIMIT_RATE} req/{DEFAULT_RATE_LIMIT_PERIOD}s).")
