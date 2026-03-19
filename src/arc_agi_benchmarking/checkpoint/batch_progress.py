@@ -176,6 +176,20 @@ class BatchProgressManager:
         task.cost_usd = cost_usd
         self._save()
 
+    def requeue_task(self, task_id: str) -> bool:
+        """Reset a task back to pending so it can be picked up again."""
+        task = self.progress.tasks.get(task_id)
+        if not task:
+            return False
+
+        task.status = TaskStatus.PENDING
+        task.error = None
+        task.worker_id = None
+        task.started_at = None
+        task.completed_at = None
+        self._save()
+        return True
+
     def reset_stale_tasks(self, max_age_seconds: int = 3600) -> int:
         """Reset tasks that have been in-progress too long (stale workers).
 
@@ -196,13 +210,8 @@ class BatchProgressManager:
                     f"Resetting stale task {task.task_id} "
                     f"(age: {age:.0f}s, worker: {task.worker_id})"
                 )
-                task.status = TaskStatus.PENDING
-                task.worker_id = None
-                task.started_at = None
+                self.requeue_task(task.task_id)
                 reset_count += 1
-
-        if reset_count > 0:
-            self._save()
 
         return reset_count
 
@@ -221,15 +230,8 @@ class BatchProgressManager:
         reset_count = 0
         for task in self.progress.tasks.values():
             if task.status == TaskStatus.FAILED:
-                task.status = TaskStatus.PENDING
-                task.error = None
-                task.worker_id = None
-                task.started_at = None
-                task.completed_at = None
+                self.requeue_task(task.task_id)
                 reset_count += 1
-
-        if reset_count > 0:
-            self._save()
 
         return reset_count
 

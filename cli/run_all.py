@@ -385,29 +385,53 @@ async def main(task_list_file: Optional[str],
 
     # Determine which tasks to run
     if resume:
-        # Only run pending tasks that don't already have submission files on disk
+        # Run any unfinished task that doesn't already have a submission on disk.
+        # This lets interrupted runs pick up failed/in-progress tasks automatically.
         tasks_to_run = []
         skipped_existing_submissions = 0
+        requeued_unfinished_tasks = 0
         for task_id in task_ids:
             task_progress = progress_manager.progress.tasks.get(task_id)
-            if not task_progress or task_progress.status != TaskStatus.PENDING:
+            if not task_progress:
                 continue
+
             # Check if submission already exists on disk (handles pre-checkpoint runs)
             if submission_exists(save_submission_dir, task_id):
-                progress_manager.mark_completed(task_id)
-                skipped_existing_submissions += 1
+                if task_progress.status != TaskStatus.COMPLETED:
+                    progress_manager.mark_completed(task_id)
+                    skipped_existing_submissions += 1
                 continue
+
+            if task_progress.status == TaskStatus.COMPLETED:
+                # Checkpoint says completed but no submission file — requeue
+                logger.warning(f"Task {task_id} marked completed but no submission found on disk. Requeuing.")
+                progress_manager.requeue_task(task_id)
+                requeued_unfinished_tasks += 1
+                tasks_to_run.append(task_id)
+                continue
+
+            if task_progress.status != TaskStatus.PENDING:
+                progress_manager.requeue_task(task_id)
+                requeued_unfinished_tasks += 1
+
             tasks_to_run.append(task_id)
 
         completed_count = progress_manager.progress.completed_count
         failed_count = progress_manager.progress.failed_count
-        if completed_count > 0 or failed_count > 0 or skipped_existing_submissions > 0:
+        if (
+            completed_count > 0
+            or failed_count > 0
+            or skipped_existing_submissions > 0
+            or requeued_unfinished_tasks > 0
+        ):
             logger.info(
                 f"Resuming: {completed_count} completed, {failed_count} failed, "
                 f"{len(tasks_to_run)} remaining"
             )
             if skipped_existing_submissions > 0:
                 logger.info(f"Marked {skipped_existing_submissions} task(s) as completed (existing submissions found on disk)")
+            if requeued_unfinished_tasks > 0:
+                logger.info(f"Requeued {requeued_unfinished_tasks} unfinished task(s) with no submission file")
     else:
         tasks_to_run = task_ids
         logger.info("Resume disabled - running all tasks")
