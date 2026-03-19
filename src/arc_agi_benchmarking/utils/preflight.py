@@ -32,6 +32,7 @@ PROVIDER_API_KEYS: Dict[str, List[str]] = {
     "openrouter": ["OPENROUTER_API_KEY"],
     "codex": ["OPENAI_API_KEY", "CODEX_API_KEY"],  # Either works
     "random": [],  # No API key needed
+    "ollama": [],  # Local inference, no API key needed
 }
 
 # Average tokens per ARC task (empirically estimated)
@@ -243,20 +244,20 @@ def validate_output_dir(output_dir: str) -> ValidationResult:
     """Check if the output directory is writable."""
     path = Path(output_dir)
 
-    # If it doesn't exist, check if parent is writable
+    # If it doesn't exist, create the full directory tree
     if not path.exists():
-        parent = path.parent
-        if parent.exists() and os.access(parent, os.W_OK):
+        try:
+            path.mkdir(parents=True, exist_ok=True)
             return ValidationResult(
                 passed=True,
-                message=f"Output directory will be created",
+                message=f"Output directory created",
                 details=str(path.absolute())
             )
-        else:
+        except OSError as e:
             return ValidationResult(
                 passed=False,
                 message=f"Cannot create output directory",
-                details=f"Parent not writable: {parent.absolute()}"
+                details=str(e)
             )
 
     if not path.is_dir():

@@ -104,7 +104,8 @@ def upload(output_dir, model_name, task_set, org, public):
             folder_path=str(output_path),
             path_in_repo=model_name,  # Places files in task_set/model_name/
             repo_id=repo_id,
-            repo_type="dataset"
+            repo_type="dataset",
+            allow_patterns=["*.json"],
         )
             
         click.echo(f"\n✅ Successfully uploaded files to {repo_id}/{model_name}")
@@ -153,7 +154,8 @@ def bulk_upload(submissions_dir, task_set, org, public):
                     folder_path=str(model_dir),
                     path_in_repo=model_name,
                     repo_id=repo_id,
-                    repo_type="dataset"
+                    repo_type="dataset",
+                    allow_patterns=["*.json"],
                 )
                 click.echo(f"✅ Successfully uploaded {model_name}")
                 success_count += 1
