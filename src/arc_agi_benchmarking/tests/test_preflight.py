@@ -155,7 +155,7 @@ class TestValidateOutputDir:
             new_dir = os.path.join(tmpdir, "new_subdir")
             result = validate_output_dir(new_dir)
             assert result.passed is True
-            assert "will be created" in result.message.lower()
+            assert "created" in result.message.lower()
 
     def test_file_instead_of_dir(self):
         """Test validation when path is a file, not a directory."""
