@@ -183,3 +183,8 @@ analyze_submission_times.py
 /test_logs/*
 .codex_*
 dummy_submissions
+
+data/semiprivate-v1
+data/semiprivate-v2
+data/public-v1
+data/public-v2
