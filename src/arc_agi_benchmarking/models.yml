@@ -10,66 +10,6 @@ models:
       output: 0.0
 
 ################
-#### Ollama ####
-################
-
-  - name: "qwen3.5-0.8b"
-    model_name: "qwen3.5:0.8b"
-    provider: "ollama"
-    api_type: "chat_completions"
-    max_completion_tokens: 16000
-    temperature: 1.0
-    top_p: 0.95
-    presence_penalty: 1.5
-    enable_thinking: true
-    pricing:
-      date: "2026-03-03"
-      input: 0.00
-      output: 0.00
-
-  - name: "qwen3.5-2b"
-    model_name: "qwen3.5:2b"
-    provider: "ollama"
-    api_type: "chat_completions"
-    max_completion_tokens: 16000
-    temperature: 1.0
-    top_p: 0.95
-    presence_penalty: 1.5
-    enable_thinking: true
-    pricing:
-      date: "2026-03-03"
-      input: 0.00
-      output: 0.00
-
-  - name: "qwen3.5-4b"
-    model_name: "qwen3.5:4b"
-    provider: "ollama"
-    api_type: "chat_completions"
-    max_completion_tokens: 16000
-    temperature: 1.0
-    top_p: 0.95
-    presence_penalty: 1.5
-    enable_thinking: true
-    pricing:
-      date: "2026-03-03"
-      input: 0.00
-      output: 0.00
-
-  - name: "qwen3.5-9b"
-    model_name: "qwen3.5:9b"
-    provider: "ollama"
-    api_type: "chat_completions"
-    max_completion_tokens: 16000
-    temperature: 1.0
-    top_p: 0.95
-    presence_penalty: 1.5
-    enable_thinking: true
-    pricing:
-      date: "2026-03-03"
-      input: 0.00
-      output: 0.00
-
-################
 #### OpenAI ####
 ################
 

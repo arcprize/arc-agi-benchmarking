@@ -32,7 +32,6 @@ PROVIDER_API_KEYS: Dict[str, List[str]] = {
     "openrouter": ["OPENROUTER_API_KEY"],
     "codex": ["OPENAI_API_KEY", "CODEX_API_KEY"],  # Either works
     "random": [],  # No API key needed
-    "ollama": [],  # Local inference, no API key needed
 }
 
 # Average tokens per ARC task (empirically estimated)
@@ -44,6 +43,7 @@ DEFAULT_AVG_OUTPUT_TOKENS_PER_TASK = 500
 @dataclass
 class ValidationResult:
     """Result of a single validation check."""
+
     passed: bool
     message: str
     details: Optional[str] = None
@@ -52,6 +52,7 @@ class ValidationResult:
 @dataclass
 class CostEstimate:
     """Estimated cost breakdown for a benchmark run."""
+
     num_tasks: int
     num_attempts_per_task: int
     total_attempts: int
@@ -78,6 +79,7 @@ class CostEstimate:
 @dataclass
 class PreflightReport:
     """Complete preflight validation report."""
+
     config_name: str
     validations: List[ValidationResult]
     cost_estimate: Optional[CostEstimate]
@@ -124,19 +126,17 @@ def validate_config_exists(config_name: str) -> ValidationResult:
         return ValidationResult(
             passed=True,
             message=f"Config '{config_name}' found",
-            details=f"Model: {config.model_name}, Provider: {config.provider}"
+            details=f"Model: {config.model_name}, Provider: {config.provider}",
         )
     except ValueError as e:
         return ValidationResult(
-            passed=False,
-            message=f"Config '{config_name}' not found",
-            details=str(e)
+            passed=False, message=f"Config '{config_name}' not found", details=str(e)
         )
     except Exception as e:
         return ValidationResult(
             passed=False,
             message=f"Error reading config '{config_name}'",
-            details=str(e)
+            details=str(e),
         )
 
 
@@ -146,15 +146,14 @@ def validate_api_key(provider: str) -> ValidationResult:
         return ValidationResult(
             passed=False,
             message=f"Unknown provider '{provider}'",
-            details=f"Known providers: {', '.join(PROVIDER_API_KEYS.keys())}"
+            details=f"Known providers: {', '.join(PROVIDER_API_KEYS.keys())}",
         )
 
     required_keys = PROVIDER_API_KEYS[provider]
 
     if not required_keys:
         return ValidationResult(
-            passed=True,
-            message=f"No API key required for '{provider}'"
+            passed=True, message=f"No API key required for '{provider}'"
         )
 
     # Check if any of the valid keys exist
@@ -162,17 +161,19 @@ def validate_api_key(provider: str) -> ValidationResult:
         if os.environ.get(key_name):
             # Mask the key for security
             key_value = os.environ.get(key_name, "")
-            masked = key_value[:4] + "..." + key_value[-4:] if len(key_value) > 8 else "***"
+            masked = (
+                key_value[:4] + "..." + key_value[-4:] if len(key_value) > 8 else "***"
+            )
             return ValidationResult(
                 passed=True,
                 message=f"API key '{key_name}' found",
-                details=f"Value: {masked}"
+                details=f"Value: {masked}",
             )
 
     return ValidationResult(
         passed=False,
         message=f"API key not found for '{provider}'",
-        details=f"Set one of: {', '.join(required_keys)}"
+        details=f"Set one of: {', '.join(required_keys)}",
     )
 
 
@@ -185,14 +186,14 @@ def validate_data_dir(data_dir: str) -> Tuple[ValidationResult, List[str]]:
         return ValidationResult(
             passed=False,
             message=f"Data directory not found",
-            details=str(path.absolute())
+            details=str(path.absolute()),
         ), task_ids
 
     if not path.is_dir():
         return ValidationResult(
             passed=False,
             message=f"Data path is not a directory",
-            details=str(path.absolute())
+            details=str(path.absolute()),
         ), task_ids
 
     # Find all JSON files
@@ -202,7 +203,7 @@ def validate_data_dir(data_dir: str) -> Tuple[ValidationResult, List[str]]:
         return ValidationResult(
             passed=False,
             message=f"No task files found in data directory",
-            details=str(path.absolute())
+            details=str(path.absolute()),
         ), task_ids
 
     # Validate each file
@@ -211,11 +212,11 @@ def validate_data_dir(data_dir: str) -> Tuple[ValidationResult, List[str]]:
 
     for json_file in json_files:
         try:
-            with open(json_file, 'r') as f:
+            with open(json_file, "r") as f:
                 data = json.load(f)
 
             # Check for required keys
-            if 'train' in data and 'test' in data:
+            if "train" in data and "test" in data:
                 valid_count += 1
                 task_ids.append(json_file.stem)
             else:
@@ -226,17 +227,24 @@ def validate_data_dir(data_dir: str) -> Tuple[ValidationResult, List[str]]:
             invalid_files.append(f"{json_file.name} ({str(e)})")
 
     if invalid_files:
-        return ValidationResult(
-            passed=valid_count > 0,  # Partial pass if some files are valid
-            message=f"Found {valid_count} valid tasks, {len(invalid_files)} invalid",
-            details=f"Invalid: {', '.join(invalid_files[:5])}" +
-                    (f" (+{len(invalid_files)-5} more)" if len(invalid_files) > 5 else "")
-        ), task_ids
+        return (
+            ValidationResult(
+                passed=valid_count > 0,  # Partial pass if some files are valid
+                message=f"Found {valid_count} valid tasks, {len(invalid_files)} invalid",
+                details=f"Invalid: {', '.join(invalid_files[:5])}"
+                + (
+                    f" (+{len(invalid_files) - 5} more)"
+                    if len(invalid_files) > 5
+                    else ""
+                ),
+            ),
+            task_ids,
+        )
 
     return ValidationResult(
         passed=True,
         message=f"Found {valid_count} valid task files",
-        details=str(path.absolute())
+        details=str(path.absolute()),
     ), task_ids
 
 
@@ -251,33 +259,31 @@ def validate_output_dir(output_dir: str) -> ValidationResult:
             return ValidationResult(
                 passed=True,
                 message=f"Output directory created",
-                details=str(path.absolute())
+                details=str(path.absolute()),
             )
         except OSError as e:
             return ValidationResult(
-                passed=False,
-                message=f"Cannot create output directory",
-                details=str(e)
+                passed=False, message=f"Cannot create output directory", details=str(e)
             )
 
     if not path.is_dir():
         return ValidationResult(
             passed=False,
             message=f"Output path exists but is not a directory",
-            details=str(path.absolute())
+            details=str(path.absolute()),
         )
 
     if not os.access(path, os.W_OK):
         return ValidationResult(
             passed=False,
             message=f"Output directory not writable",
-            details=str(path.absolute())
+            details=str(path.absolute()),
         )
 
     return ValidationResult(
         passed=True,
         message=f"Output directory exists and is writable",
-        details=str(path.absolute())
+        details=str(path.absolute()),
     )
 
 
@@ -348,10 +354,11 @@ def run_preflight(
         api_result = validate_api_key(model_config.provider)
         validations.append(api_result)
     else:
-        validations.append(ValidationResult(
-            passed=False,
-            message="Skipping API key validation (config not found)"
-        ))
+        validations.append(
+            ValidationResult(
+                passed=False, message="Skipping API key validation (config not found)"
+            )
+        )
 
     # 3. Validate data directory
     data_result, task_ids = validate_data_dir(data_dir)
@@ -394,25 +401,22 @@ def main():
         "--config",
         type=str,
         required=True,
-        help="Model configuration name from models.yml"
+        help="Model configuration name from models.yml",
     )
     parser.add_argument(
         "--data_dir",
         type=str,
         default="data/sample/tasks",
-        help="Directory containing task JSON files"
+        help="Directory containing task JSON files",
     )
     parser.add_argument(
         "--output_dir",
         type=str,
         default="submissions",
-        help="Directory for saving submissions"
+        help="Directory for saving submissions",
     )
     parser.add_argument(
-        "--num_attempts",
-        type=int,
-        default=2,
-        help="Number of attempts per task"
+        "--num_attempts", type=int, default=2, help="Number of attempts per task"
     )
 
     args = parser.parse_args()
