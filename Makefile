@@ -38,28 +38,28 @@ run-batch:
 		--save_submission_dir submissions/random-batch \
 		--log-level INFO
 
-# Score submissions
-score:
-	python -m arc_agi_benchmarking.scoring.scoring \
-		--task_dir data/sample/tasks \
-		--submission_dir submissions/random-batch \
-		--print_logs
-
-# Upload PUBLIC submissions to Hugging Face (NEVER semiprivate or private)
-# Usage: make upload CONFIG=minimax-m2.5 DATASET=v1
-# Usage: make upload CONFIG=minimax-m2.5 DATASET=v2
-DATASET ?=
-upload:
+# Run a full benchmark locally
+# Usage: make run-benchmark CONFIG=kimi-k2.5 DATA_SOURCE=semiprivate-v1/evaluation
+CONFIG ?=
+DATA_SOURCE ?= public-v2/evaluation
+run-benchmark:
 ifndef CONFIG
-	$(error CONFIG is required. Usage: make upload CONFIG=<model-config> DATASET=<v1|v2>)
+	$(error CONFIG is required. Usage: make run-benchmark CONFIG=<model-config> [DATA_SOURCE=<path>])
 endif
-ifndef DATASET
-	$(error DATASET is required (v1 or v2). Usage: make upload CONFIG=<model-config> DATASET=<v1|v2>)
+	python cli/run_all.py \
+		--data_dir data/$(DATA_SOURCE) \
+		--config $(CONFIG) \
+		--save_submission_dir submissions/$(CONFIG)/$(DATA_SOURCE) \
+		--log-level INFO
+
+# Score one or more configs across all datasets in a table
+# Usage: make score CONFIGS="kimi-k2.5,gpt-5-2-thinking-low-v1"
+CONFIGS ?=
+score:
+ifndef CONFIGS
+	$(error CONFIGS is required. Usage: make score CONFIGS="config1,config2,...")
 endif
-	python cli/submission_cli.py upload \
-		submissions/$(CONFIG)/public-$(DATASET)/evaluation \
-		--model-name $(CONFIG) \
-		--task-set arc_agi_$(DATASET)_public_eval
+	python cli/score_table.py "$(CONFIGS)"
 
 # Upload PUBLIC submissions to Hugging Face (NEVER semiprivate or private)
 # Usage: make upload CONFIG=minimax-m2.5 DATASET=v1
