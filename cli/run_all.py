@@ -325,7 +325,8 @@ async def main(task_list_file: Optional[str],
                logs_base_dir: Path,
                max_task_timeout: Optional[float] = None,
                circuit_breaker_threshold: Optional[int] = None,
-               resume: bool = True) -> int:
+               resume: bool = True,
+               limit: Optional[int] = None) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -365,6 +366,10 @@ async def main(task_list_file: Optional[str],
     except Exception as e:
         logger.error(f"Error loading tasks: {e}", exc_info=True)
         return 1 # Return an error code
+
+    if limit:
+        task_ids = task_ids[:limit]
+        logger.info(f"Limiting to {limit} tasks")
 
     # --- Checkpointing Setup ---
     # Note: save_submission_dir is expected to include config name (e.g., submissions/config)
@@ -448,6 +453,22 @@ async def main(task_list_file: Optional[str],
         return 1
 
     logger.info(f"Total jobs to process: {len(all_jobs_to_run)}")
+
+    # Check if this is an Anthropic batch config
+    model_config_check = get_model_config(config_to_test)
+    if model_config_check.kwargs.get("batch") and model_config_check.provider == "anthropic":
+        from arc_agi_benchmarking.batch import run_anthropic_batch
+        logger.info("Anthropic batch mode detected. Submitting all tasks as a single batch.")
+        return await run_anthropic_batch(
+            config_name=config_to_test,
+            task_ids=tasks_to_run,
+            data_dir=data_dir,
+            save_submission_dir=save_submission_dir,
+            num_attempts=num_attempts,
+            retry_attempts=retry_attempts,
+            progress_manager=progress_manager,
+            overwrite_submission=overwrite_submission,
+        )
 
     try:
         all_provider_limits = read_provider_rate_limits()
@@ -635,6 +656,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable resume - run all tasks even if some are already completed."
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of tasks to run (useful for testing)."
+    )
 
     args = parser.parse_args()
 
@@ -719,6 +746,7 @@ if __name__ == "__main__":
         max_task_timeout=args.max_task_timeout,
         circuit_breaker_threshold=args.circuit_breaker_threshold,
         resume=resume_enabled,
+        limit=args.limit,
     ))
     
     sys.exit(exit_code_from_main) 

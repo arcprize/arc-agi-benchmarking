@@ -1,4 +1,4 @@
-.PHONY: help install test test-verbose run-sample run-batch run-benchmark clean score upload
+.PHONY: help install test test-verbose run-sample run-batch run-benchmark clean score upload batch-status
 
 help:
 	@echo "Available commands:"
@@ -50,7 +50,8 @@ endif
 		--data_dir data/$(DATA_SOURCE) \
 		--config $(CONFIG) \
 		--save_submission_dir submissions/$(CONFIG)/$(DATA_SOURCE) \
-		--log-level INFO
+		--log-level INFO \
+		$(if $(LIMIT),--limit $(LIMIT))
 
 # Score one or more configs across all datasets in a table
 # Usage: make score CONFIGS="kimi-k2.5,gpt-5-2-thinking-low-v1"
@@ -76,6 +77,14 @@ endif
 		submissions/$(CONFIG)/public-$(DATASET)/evaluation \
 		--model-name $(CONFIG) \
 		--task-set arc_agi_$(DATASET)_public_eval
+
+# Check Anthropic batch status
+# Usage: make batch-status msgbatch_01GjWk9Qf5dv71JwZkzLadLM
+batch-status:
+	@python3 cli/batch_status.py $(wordlist 2,2,$(MAKECMDGOALS))
+
+%:
+	@:
 
 clean:
 	rm -rf __pycache__ .pytest_cache

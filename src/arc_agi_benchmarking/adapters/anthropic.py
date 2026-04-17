@@ -134,7 +134,7 @@ class AnthropicAdapter(ProviderAdapter):
         Make a raw API call to Anthropic and return the response
         """
         betas = self.model_config.kwargs.get('betas')
-        api_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'betas'}
+        api_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k not in ('betas', 'batch')}
         if betas:
             return self.client.beta.messages.create(
                 model=self.model_config.model_name,
@@ -159,7 +159,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         # Prepare kwargs for streaming, removing 'stream' and 'betas'
         betas = self.model_config.kwargs.get('betas')
-        stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k not in ('stream', 'betas')}
+        stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k not in ('stream', 'betas', 'batch')}
 
         try:
             if betas:
