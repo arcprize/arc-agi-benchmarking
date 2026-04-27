@@ -30,6 +30,7 @@ PROVIDER_API_KEYS: Dict[str, List[str]] = {
     "grok": ["XAI_API_KEY"],
     "groq": ["GROQ_API_KEY"],
     "openrouter": ["OPENROUTER_API_KEY"],
+    "together": ["TOGETHER_API_KEY"],
     "codex": ["OPENAI_API_KEY", "CODEX_API_KEY"],  # Either works
     "random": [],  # No API key needed
 }
