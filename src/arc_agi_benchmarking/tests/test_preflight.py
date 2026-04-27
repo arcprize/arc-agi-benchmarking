@@ -21,6 +21,7 @@ from arc_agi_benchmarking.utils.preflight import (
     PROVIDER_API_KEYS,
 )
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
+from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits
 
 
 class TestValidateConfigExists:
@@ -82,6 +83,55 @@ class TestValidateApiKey:
         with patch.dict(os.environ, {"CODEX_API_KEY": "codex-test12345678"}, clear=True):
             result = validate_api_key("codex")
             assert result.passed is True
+
+    def test_together_provider_with_key(self):
+        """Test that Together accepts TOGETHER_API_KEY."""
+        with patch.dict(os.environ, {"TOGETHER_API_KEY": "tog-test12345678"}, clear=True):
+            result = validate_api_key("together")
+            assert result.passed is True
+            assert "TOGETHER_API_KEY" in result.message
+
+    def test_together_provider_without_key(self):
+        """Test that Together fails clearly without TOGETHER_API_KEY."""
+        with patch.dict(os.environ, {}, clear=True):
+            result = validate_api_key("together")
+            assert result.passed is False
+            assert "TOGETHER_API_KEY" in result.details
+
+    def test_together_provider_key_mapping_exists(self):
+        """Test that preflight knows which environment key Together uses."""
+        assert PROVIDER_API_KEYS["together"] == ["TOGETHER_API_KEY"]
+
+
+class TestTogetherConfigIntegration:
+    """Tests for Together model and provider configuration."""
+
+    def test_together_model_config_exists(self):
+        """Test that the Together model config can be loaded."""
+        config = read_models_config("deepseek-v4-pro-together")
+
+        assert config.name == "deepseek-v4-pro-together"
+        assert config.model_name == "deepseek-ai/DeepSeek-V4-Pro"
+        assert config.provider == "together"
+        assert config.kwargs["temperature"] == 0
+        assert config.kwargs["max_tokens"] == 8192
+        assert config.pricing.input == 2.1
+        assert config.pricing.output == 4.4
+
+    def test_together_provider_rate_limit_exists(self):
+        """Test that provider_config.yml includes Together rate limits."""
+        limits = read_provider_rate_limits()
+
+        assert "together" in limits
+        assert limits["together"]["rate"] == 60
+        assert limits["together"]["period"] == 60
+
+    def test_together_config_preflight_exists(self):
+        """Test that preflight can find the Together model config."""
+        result = validate_config_exists("deepseek-v4-pro-together")
+
+        assert result.passed is True
+        assert "deepseek-v4-pro-together" in result.message
 
 
 class TestValidateDataDir:

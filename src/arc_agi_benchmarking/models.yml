@@ -10,6 +10,21 @@ models:
       output: 0.0
 
 ################
+### Together ###
+################
+
+  - name: "deepseek-v4-pro-together"
+    model_name: "deepseek-ai/DeepSeek-V4-Pro"
+    provider: "together"
+    api_type: "chat_completions"
+    temperature: 0
+    max_tokens: 8192
+    pricing:
+      date: "2026-04-27"
+      input: 2.10
+      output: 4.40
+
+################
 #### OpenAI ####
 ################
 

@@ -53,5 +53,9 @@ mulerouter:
   rate: 30     # MuleRouter (Qwen models)
   period: 60    # per 60 seconds
 
+together:
+  rate: 60     # Together.ai serverless/dedicated endpoints; tune per account limits
+  period: 60    # per 60 seconds
+
 # Add other provider keys (matching models.yml 'provider' field) and their limits as needed.
 # Ensure these provider keys exactly match what's in your models.yml for each model config.

@@ -17,6 +17,7 @@ from arc_agi_benchmarking.adapters import (
     RandomAdapter,
     ClaudeagentsdkAdapter,
     CodexcliAdapter,
+    TogetherAdapter,
 )
 from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
@@ -47,6 +48,7 @@ PROVIDER_ADAPTERS = {
     "random": RandomAdapter,
     "claudeagentsdk": ClaudeagentsdkAdapter,
     "codexcli": CodexcliAdapter,
+    "together": TogetherAdapter,
 }
 
 
