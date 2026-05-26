@@ -10,13 +10,17 @@ cd arc-agi-benchmarking
 ```
 
 1) Install (installs all adapters + SDKs):
+
+This project is managed with [uv](https://docs.astral.sh/uv/). Install uv if you don't have it, then sync the locked dependencies into a project `.venv`:
 ```bash
-pip install .
+uv sync
 ```
+
+All commands below use `uv run`, which executes against the project's `.venv` without requiring manual activation. If you prefer pip, you can still `pip install .` into an environment of your choice and drop the `uv run` prefix.
 
 2) Single-task dry run (no API keys) with the local `random-baseline` adapter:
 ```bash
-python main.py \
+uv run main.py \
   --data_dir data/sample/tasks \
   --config random-baseline \
   --task_id 66e6c45b \
@@ -26,7 +30,7 @@ python main.py \
 
 3) Run all bundled sample tasks with the random solver:
 ```bash
-python cli/run_all.py \
+uv run cli/run_all.py \
   --config random-baseline \
   --data_dir data/sample/tasks \
   --save_submission_dir submissions/random-baseline-sample \
@@ -35,7 +39,7 @@ python cli/run_all.py \
 
 4) Score the outputs you just generated:
 ```bash
-python src/arc_agi_benchmarking/scoring/scoring.py \
+uv run src/arc_agi_benchmarking/scoring/scoring.py \
   --task_dir data/sample/tasks \
   --submission_dir submissions/random-baseline-sample \
   --results_dir results/random-baseline-sample
@@ -66,8 +70,8 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 
 ## Running models
 For runs beyond the Quickstart:
-- Batch (recommended): `python cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; run multiple configs by invoking it multiple times (see `run_all_configs_local.sh` for a pattern).
-- Single task (debug): `python main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.
+- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; run multiple configs by invoking it multiple times (see `run_all_configs_local.sh` for a pattern).
+- Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.
 See the CLI parameters section for flag details.
 
 ## Configuring models and providers
@@ -108,7 +112,7 @@ To score a run you'll need 1) your test's submission directory and 2) the source
 Score a run:  
 
 ```bash
-python src/arc_agi_benchmarking/scoring/scoring.py
+uv run src/arc_agi_benchmarking/scoring/scoring.py
   --task_dir <data_dir>/data/evaluation
   --submission_dir submissions/<config>
   --results_dir results/<config>
@@ -116,5 +120,5 @@ python src/arc_agi_benchmarking/scoring/scoring.py
 
 ## Contributing and testing
 - Add new providers/models in `src/arc_agi_benchmarking/adapters` and `models.yml`.
-- Run tests: `pytest`.
+- Run tests: `uv run pytest`.
 - Use the bundled sample task + submission for quick scoring checks.
