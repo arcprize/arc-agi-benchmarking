@@ -266,6 +266,8 @@ class ModelConfig(BaseModel):
     provider: str
     pricing: ModelPricing
     api_type: Optional[str] = APIType.CHAT_COMPLETIONS # currently only used by openai
+    base_url: Optional[str] = None  # override the provider's default API endpoint (OpenAI-compatible providers)
+    api_key_env: Optional[str] = None  # name of the env var holding the API key (not the secret itself)
     kwargs: Dict[str, Any] = {}
     
     model_config = {
@@ -281,7 +283,7 @@ class ModelConfig(BaseModel):
             return values
             
         kwargs = {}
-        known_fields = {'name', 'provider', 'pricing', 'kwargs', 'model_name', 'api_type'}
+        known_fields = {'name', 'provider', 'pricing', 'kwargs', 'model_name', 'api_type', 'base_url', 'api_key_env'}
         
         for field_name, value in values.items():
             if field_name not in known_fields:

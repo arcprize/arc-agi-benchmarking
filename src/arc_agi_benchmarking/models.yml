@@ -9,6 +9,27 @@ models:
       input: 0.0
       output: 0.0
 
+###############################################
+### OpenAI-compatible endpoints (custom URL) ###
+###############################################
+
+# Example: any OpenAI-compatible provider can reuse the `openai` adapter by
+# setting `base_url` and `api_key_env`. No new adapter class is required.
+# Below targets Baseten's OpenAI-compatible endpoint. Replace pricing with the
+# provider's actual per-1M-token rates before relying on cost reporting.
+  - name: "baseten-glm-5-2"
+    model_name: "zai-org/GLM-5.2"
+    provider: "openai"
+    api_type: "chat_completions"
+    base_url: "https://inference.baseten.co/v1"
+    api_key_env: "BASETEN_API_KEY"
+    temperature: 1
+    max_tokens: 16000
+    pricing:
+      date: "2026-06-18"
+      input: 0.0
+      output: 0.0
+
 ################
 ### Together ###
 ################
