@@ -515,6 +515,63 @@ class TestOpenAIBaseProviderLogic:
         assert passed_kwargs['reasoning'] == {'effort': 'high'}, \
             "reasoning value was not passed correctly"
 
+    def test_responses_default_store_false(self, adapter_instance):
+        """Responses API should default to store=false unless explicitly overridden."""
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        adapter_instance.model_config.kwargs = {
+            'max_output_tokens': 100000,
+        }
+
+        mock_response = MagicMock()
+        mock_response.status = "completed"
+        adapter_instance.client.responses.create = MagicMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "Test prompt"}]
+        adapter_instance._responses(messages)
+
+        adapter_instance.client.responses.create.assert_called_once()
+        passed_kwargs = adapter_instance.client.responses.create.call_args.kwargs
+        assert passed_kwargs["store"] is False
+
+    def test_responses_respect_explicit_store_override(self, adapter_instance):
+        """Explicit store config should override the Responses API default."""
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        adapter_instance.model_config.kwargs = {
+            'store': True,
+            'max_output_tokens': 100000,
+        }
+
+        mock_response = MagicMock()
+        mock_response.status = "completed"
+        adapter_instance.client.responses.create = MagicMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "Test prompt"}]
+        adapter_instance._responses(messages)
+
+        adapter_instance.client.responses.create.assert_called_once()
+        passed_kwargs = adapter_instance.client.responses.create.call_args.kwargs
+        assert passed_kwargs["store"] is True
+
+    def test_responses_maps_reasoning_effort_to_reasoning_payload(self, adapter_instance):
+        """Responses API should translate config reasoning_effort into reasoning.effort."""
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        adapter_instance.model_config.kwargs = {
+            'reasoning_effort': 'xhigh',
+            'max_output_tokens': 100000,
+        }
+
+        mock_response = MagicMock()
+        mock_response.status = "completed"
+        adapter_instance.client.responses.create = MagicMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "Test prompt"}]
+        adapter_instance._responses(messages)
+
+        adapter_instance.client.responses.create.assert_called_once()
+        passed_kwargs = adapter_instance.client.responses.create.call_args.kwargs
+        assert passed_kwargs["reasoning"] == {"effort": "xhigh"}
+        assert "reasoning_effort" not in passed_kwargs
+
     # --- Tests for extract_json_from_response ---
 
     def test_extract_json_direct_array(self, adapter_class, adapter_instance):
