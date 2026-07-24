@@ -2,7 +2,7 @@ import argparse
 import asyncio
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -12,8 +12,10 @@ from cli import run_all, run_configs
 @pytest.fixture(autouse=True)
 def clear_rate_limiter_cache():
     run_all.PROVIDER_RATE_LIMITERS.clear()
+    run_all.PROVIDER_CIRCUIT_BREAKERS.clear()
     yield
     run_all.PROVIDER_RATE_LIMITERS.clear()
+    run_all.PROVIDER_CIRCUIT_BREAKERS.clear()
 
 
 def test_provider_rate_limit_is_divided_without_changing_period():
@@ -62,6 +64,52 @@ def test_rate_limit_divisor_must_be_positive():
             {"xai": {"rate": 300, "period": 60}},
             rate_limit_divisor=0,
         )
+
+
+@pytest.mark.asyncio
+async def test_max_tasks_per_run_limits_sorted_pending_tasks(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    for task_id in ("task-d", "task-b", "task-a", "task-c"):
+        (data_dir / f"{task_id}.json").write_text("{}")
+
+    model_config = SimpleNamespace(
+        provider="task-limit-provider",
+        name="task-limit-config",
+        kwargs={},
+    )
+    run_wrapper = AsyncMock(return_value=True)
+
+    with (
+        patch.object(run_all, "get_model_config", return_value=model_config),
+        patch.object(
+            run_all,
+            "read_provider_rate_limits",
+            return_value={"task-limit-provider": {"rate": 100, "period": 60}},
+        ),
+        patch.object(
+            run_all,
+            "submission_exists",
+            side_effect=lambda _directory, task_id: task_id == "task-a",
+        ),
+        patch.object(run_all, "run_single_test_wrapper", run_wrapper),
+    ):
+        exit_code = await run_all.main(
+            task_list_file=None,
+            config_to_test="task-limit-config",
+            data_dir=str(data_dir),
+            save_submission_dir=str(tmp_path / "submissions"),
+            overwrite_submission=False,
+            print_submission=False,
+            num_attempts=1,
+            retry_attempts=1,
+            logs_base_dir=tmp_path / "logs",
+            max_tasks_per_run=2,
+        )
+
+    scheduled_task_ids = [call.args[1] for call in run_wrapper.await_args_list]
+    assert exit_code == 0
+    assert scheduled_task_ids == ["task-b", "task-c"]
 
 
 def test_resolve_config_runs_groups_providers_and_isolates_paths():

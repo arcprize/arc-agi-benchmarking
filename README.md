@@ -62,6 +62,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 - `--save_submission_dir`: Where to write outputs. Use the same flag for single-task and batch (alias: `--submissions-root` remains for backward compatibility). Recommended structure: `<save_submission_dir>/<config>/<version>/<eval_type>/`, ex: `submissions/gpt-4o-2024-11-20/v1/public_eval/`.
 - `--num_attempts`: How many attempts per test pair (per task).
 - `--retry_attempts`: Internal retries within an attempt if the provider call fails.
+- `--max-tasks-per-run`: Maximum pending tasks scheduled by each config/dataset child. Resume filtering happens before this cap is applied.
 - `--log-level`: `DEBUG|INFO|WARNING|ERROR|CRITICAL|NONE`.
 - `--enable-metrics`: Toggle metrics collection (saved in `metrics_output/`).
 - Multi-config launcher-specific:
@@ -91,9 +92,10 @@ For runs beyond the Quickstart:
       v2/public_eval=data/v2/public_eval \
       v2/semi_private_eval=data/v2/semi_private_eval \
     --save_submission_root submissions \
+    --max-tasks-per-run 10 \
     --log-level INFO
   ```
-  This is the normal full benchmark layout: each config runs against `public_eval` and `semi_private_eval` for both v1 and v2. The example starts twenty child runs and writes to `submissions/<config>/<version>/<eval_type>`, such as `submissions/gpt-5-2-2025-12-11-thinking-high/v1/public_eval`. Provider rate limits are shared automatically across every child: all twenty OpenAI runs receive one-twentieth of the effective OpenAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
+  This is the normal full benchmark layout: each config runs against `public_eval` and `semi_private_eval` for both v1 and v2. The example starts twenty child runs, schedules at most 10 pending tasks in each child, and writes to `submissions/<config>/<version>/<eval_type>`, such as `submissions/gpt-5-2-2025-12-11-thinking-high/v1/public_eval`. Provider rate limits are shared automatically across every child: all twenty OpenAI runs receive one-twentieth of the effective OpenAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
 
   The original single-dataset form remains available with `--data_dir data/v2/public_eval --run_name v2/public_eval` instead of `--datasets`.
 - Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.

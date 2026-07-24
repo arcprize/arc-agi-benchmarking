@@ -353,7 +353,8 @@ async def main(task_list_file: Optional[str],
                max_task_timeout: Optional[float] = None,
                circuit_breaker_threshold: Optional[int] = None,
                resume: bool = True,
-               rate_limit_divisor: int = 1) -> int:
+               rate_limit_divisor: int = 1,
+               max_tasks_per_run: Optional[int] = None) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -374,11 +375,11 @@ async def main(task_list_file: Optional[str],
             logger.info(f"Loaded {len(task_ids)} task IDs from {task_list_file}.")
         else:
             logger.info(f"No task list file provided. Inferring task list from data directory: {data_dir}")
-            task_ids = [
+            task_ids = sorted(
                 os.path.splitext(fname)[0] 
                 for fname in os.listdir(data_dir) 
                 if os.path.isfile(os.path.join(data_dir, fname)) and fname.endswith('.json')
-            ]
+            )
             if not task_ids:
                 logger.error(f"No task files (.json) found in {data_dir}. Exiting.")
                 return 1 # Return an error code
@@ -439,6 +440,14 @@ async def main(task_list_file: Optional[str],
     else:
         tasks_to_run = task_ids
         logger.info("Resume disabled - running all tasks")
+
+    if max_tasks_per_run is not None and len(tasks_to_run) > max_tasks_per_run:
+        available_task_count = len(tasks_to_run)
+        tasks_to_run = tasks_to_run[:max_tasks_per_run]
+        logger.info(
+            f"Limiting this run to {max_tasks_per_run} of "
+            f"{available_task_count} available task(s)"
+        )
 
     all_jobs_to_run: List[Tuple[str, str]] = []
     for task_id in tasks_to_run:
@@ -650,11 +659,23 @@ if __name__ == "__main__":
         default=1,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--max-tasks-per-run", "--max_tasks_per_run",
+        dest="max_tasks_per_run",
+        type=int,
+        default=None,
+        help=(
+            "Maximum number of pending tasks to schedule in this invocation. "
+            "Applied independently to each config/dataset run."
+        ),
+    )
 
     args = parser.parse_args()
 
     if args.rate_limit_divisor < 1:
         parser.error("--rate-limit-divisor must be at least 1")
+    if args.max_tasks_per_run is not None and args.max_tasks_per_run < 1:
+        parser.error("--max-tasks-per-run must be at least 1")
 
     resume_enabled = not args.no_resume
 
@@ -738,6 +759,7 @@ if __name__ == "__main__":
         circuit_breaker_threshold=args.circuit_breaker_threshold,
         resume=resume_enabled,
         rate_limit_divisor=args.rate_limit_divisor,
+        max_tasks_per_run=args.max_tasks_per_run,
     ))
     
     sys.exit(exit_code_from_main) 
