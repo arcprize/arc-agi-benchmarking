@@ -64,13 +64,29 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 - `--retry_attempts`: Internal retries within an attempt if the provider call fails.
 - `--log-level`: `DEBUG|INFO|WARNING|ERROR|CRITICAL|NONE`.
 - `--enable-metrics`: Toggle metrics collection (saved in `metrics_output/`).
+- Multi-config launcher-specific:
+  - `--configs`: Space-separated model config names to run concurrently.
+  - `--save_submission_root`: Root directory; each child writes to `<root>/<config>/<dataset-or-run-name>`.
+  - `--datasets`: Space-separated `NAME=PATH` datasets; launches every config against every dataset.
+  - `--run_name`: Single-dataset run path such as `v2`; mutually exclusive with `--datasets`.
 - Scoring-specific:
   - `--submission_dir`: Where your run wrote outputs
   - `--results_dir` Where to write aggregated metrics/results
 
 ## Running models
 For runs beyond the Quickstart:
-- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; run multiple configs by invoking it multiple times (see `run_all_configs_local.sh` for a pattern).
+- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; use `run_configs.py` for multiple configs.
+- Multiple configs: use `uv run cli/run_configs.py`. It starts one `run_all.py` process per config concurrently, gives each process isolated submission/checkpoint/log directories, and prefixes console output with the config name:
+  ```bash
+  uv run cli/run_configs.py \
+    --configs xai-grok-4-5-high xai-grok-4-5-medium xai-grok-4-5-low \
+    --datasets v1=data/v1 v2=data/v2 \
+    --save_submission_root submissions \
+    --log-level INFO
+  ```
+  This example starts six child runs and writes to `submissions/<config>/v1` and `submissions/<config>/v2`. Provider rate limits are shared automatically across every child: all six XAI runs receive one-sixth of the effective XAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
+
+  The original single-dataset form remains available with `--data_dir data/v2 --run_name v2` instead of `--datasets`.
 - Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.
 See the CLI parameters section for flag details.
 

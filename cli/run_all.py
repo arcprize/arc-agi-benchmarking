@@ -122,7 +122,8 @@ def get_model_config(config_name: str):
 def get_or_create_rate_limiter(
     provider_name: str,
     all_provider_limits: Dict,
-    model_config: Optional[Any] = None
+    model_config: Optional[Any] = None,
+    rate_limit_divisor: int = 1,
 ) -> AsyncRequestRateLimiter:
     """
     Get or create a rate limiter, checking for model-level config first.
@@ -131,7 +132,14 @@ def get_or_create_rate_limiter(
     1. Model-specific rate_limit in models.yml (uses config name as key)
     2. Provider-level rate limit in provider_config.yml
     3. Default rate limit
+
+    The effective configured rate is divided by ``rate_limit_divisor``. This
+    lets the multi-config launcher share a provider's request budget across
+    independent worker processes without changing the configured period.
     """
+    if rate_limit_divisor < 1:
+        raise ValueError("rate_limit_divisor must be at least 1")
+
     # Check for model-level rate limit first
     limiter_key = provider_name
     model_rate_limit = None
@@ -145,7 +153,8 @@ def get_or_create_rate_limiter(
     if limiter_key not in PROVIDER_RATE_LIMITERS:
         if model_rate_limit:
             # Use model-specific rate limit
-            config_rate = model_rate_limit.get('rate', DEFAULT_RATE_LIMIT_RATE)
+            original_config_rate = model_rate_limit.get('rate', DEFAULT_RATE_LIMIT_RATE)
+            config_rate = original_config_rate / rate_limit_divisor
             config_period = model_rate_limit.get('period', DEFAULT_RATE_LIMIT_PERIOD)
             if config_period <= 0:
                 actual_rate_for_limiter = float('inf')
@@ -156,16 +165,29 @@ def get_or_create_rate_limiter(
                 actual_rate_for_limiter = calculated_rps
                 config_capacity = model_rate_limit.get('capacity')
                 actual_capacity_for_limiter = config_capacity if config_capacity else max(1.0, calculated_rps)
-            logger.info(f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+            logger.info(
+                f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}': "
+                f"configured={original_config_rate:g} req/{config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
         elif provider_name not in all_provider_limits:
             logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default ({DEFAULT_RATE_LIMIT_RATE} req/{DEFAULT_RATE_LIMIT_PERIOD}s).")
-            default_config_rate = DEFAULT_RATE_LIMIT_RATE
+            original_config_rate = DEFAULT_RATE_LIMIT_RATE
+            default_config_rate = original_config_rate / rate_limit_divisor
             default_config_period = DEFAULT_RATE_LIMIT_PERIOD
             actual_rate_for_limiter = default_config_rate / default_config_period
             actual_capacity_for_limiter = max(1.0, actual_rate_for_limiter)
+            logger.info(
+                f"Initializing default rate limiter for '{provider_name}': "
+                f"configured={original_config_rate:g} req/{default_config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={default_config_rate:g} req/{default_config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
         else:
             limits = all_provider_limits[provider_name]
-            config_rate = limits['rate']
+            original_config_rate = limits['rate']
+            config_rate = original_config_rate / rate_limit_divisor
             config_period = limits['period']
             if config_period <= 0:
                 actual_rate_for_limiter = float('inf')
@@ -175,7 +197,12 @@ def get_or_create_rate_limiter(
                 calculated_rps = config_rate / config_period
                 actual_rate_for_limiter = calculated_rps
                 actual_capacity_for_limiter = max(1.0, calculated_rps)
-            logger.info(f"Initializing rate limiter for provider '{provider_name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+            logger.info(
+                f"Initializing rate limiter for provider '{provider_name}': "
+                f"configured={original_config_rate:g} req/{config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
         PROVIDER_RATE_LIMITERS[limiter_key] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
     return PROVIDER_RATE_LIMITERS[limiter_key]
 
@@ -325,7 +352,8 @@ async def main(task_list_file: Optional[str],
                logs_base_dir: Path,
                max_task_timeout: Optional[float] = None,
                circuit_breaker_threshold: Optional[int] = None,
-               resume: bool = True) -> int:
+               resume: bool = True,
+               rate_limit_divisor: int = 1) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -440,7 +468,12 @@ async def main(task_list_file: Optional[str],
         try:
             model_config_obj = get_model_config(config_name)
             provider_name = model_config_obj.provider
-            limiter = get_or_create_rate_limiter(provider_name, all_provider_limits, model_config_obj)
+            limiter = get_or_create_rate_limiter(
+                provider_name,
+                all_provider_limits,
+                model_config_obj,
+                rate_limit_divisor,
+            )
             circuit_breaker = get_or_create_circuit_breaker(provider_name, all_provider_limits, circuit_breaker_threshold)
             task_timeout_val = get_task_timeout(provider_name, all_provider_limits, max_task_timeout)
             async_tasks_to_execute.append(run_single_test_wrapper(
@@ -611,8 +644,17 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable resume - run all tasks even if some are already completed."
     )
+    parser.add_argument(
+        "--rate-limit-divisor",
+        type=int,
+        default=1,
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
+
+    if args.rate_limit_divisor < 1:
+        parser.error("--rate-limit-divisor must be at least 1")
 
     resume_enabled = not args.no_resume
 
@@ -695,6 +737,7 @@ if __name__ == "__main__":
         max_task_timeout=args.max_task_timeout,
         circuit_breaker_threshold=args.circuit_breaker_threshold,
         resume=resume_enabled,
+        rate_limit_divisor=args.rate_limit_divisor,
     ))
     
     sys.exit(exit_code_from_main) 

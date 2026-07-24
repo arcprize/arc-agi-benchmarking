@@ -1,0 +1,290 @@
+import argparse
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
+
+from cli import run_all, run_configs
+
+
+@pytest.fixture(autouse=True)
+def clear_rate_limiter_cache():
+    run_all.PROVIDER_RATE_LIMITERS.clear()
+    yield
+    run_all.PROVIDER_RATE_LIMITERS.clear()
+
+
+def test_provider_rate_limit_is_divided_without_changing_period():
+    limiter = run_all.get_or_create_rate_limiter(
+        "xai",
+        {"xai": {"rate": 300, "period": 1}},
+        rate_limit_divisor=3,
+    )
+
+    assert limiter._rate == pytest.approx(100)
+    assert limiter._capacity == pytest.approx(100)
+
+
+def test_model_rate_limit_keeps_precedence_and_is_divided():
+    model_config = SimpleNamespace(
+        name="model-limited",
+        kwargs={"rate_limit": {"rate": 90, "period": 30}},
+    )
+
+    limiter = run_all.get_or_create_rate_limiter(
+        "xai",
+        {"xai": {"rate": 300, "period": 1}},
+        model_config=model_config,
+        rate_limit_divisor=3,
+    )
+
+    # 90 requests / 30 seconds / 3 configs = 1 request per second.
+    assert limiter._rate == pytest.approx(1)
+    assert limiter._capacity == pytest.approx(1)
+
+
+def test_single_config_keeps_full_rate_limit():
+    limiter = run_all.get_or_create_rate_limiter(
+        "xai",
+        {"xai": {"rate": 300, "period": 60}},
+    )
+
+    assert limiter._rate == pytest.approx(5)
+    assert limiter._capacity == pytest.approx(5)
+
+
+def test_rate_limit_divisor_must_be_positive():
+    with pytest.raises(ValueError, match="at least 1"):
+        run_all.get_or_create_rate_limiter(
+            "xai",
+            {"xai": {"rate": 300, "period": 60}},
+            rate_limit_divisor=0,
+        )
+
+
+def test_resolve_config_runs_groups_providers_and_isolates_paths():
+    args = argparse.Namespace(
+        configs=["xai-high", "openai-high", "xai-low"],
+        save_submission_root=Path("submissions"),
+        run_name="v2",
+        datasets=None,
+        logs_base_dir=Path("logs"),
+    )
+    providers = {
+        "xai-high": SimpleNamespace(provider="xai"),
+        "openai-high": SimpleNamespace(provider="openai"),
+        "xai-low": SimpleNamespace(provider="xai"),
+    }
+
+    with patch.object(
+        run_configs,
+        "read_models_config",
+        side_effect=lambda config: providers[config],
+    ):
+        runs = run_configs.resolve_config_runs(args, ["--data_dir", "data/v2"])
+
+    assert [run.rate_limit_divisor for run in runs] == [2, 1, 2]
+    assert runs[0].submission_dir == Path("submissions/xai-high/v2")
+    assert runs[0].logs_dir == Path("logs/xai-high/v2")
+    assert "--rate-limit-divisor" in runs[0].command
+    assert runs[0].command[-2:] == ("--data_dir", "data/v2")
+
+
+def test_resolve_config_runs_builds_config_by_dataset_matrix():
+    args = argparse.Namespace(
+        configs=["xai-high", "openai-high", "xai-low"],
+        save_submission_root=Path("submissions"),
+        run_name=None,
+        datasets=["v1=data/v1", "v2=data/v2"],
+        logs_base_dir=Path("logs"),
+    )
+    providers = {
+        "xai-high": SimpleNamespace(provider="xai"),
+        "openai-high": SimpleNamespace(provider="openai"),
+        "xai-low": SimpleNamespace(provider="xai"),
+    }
+
+    with patch.object(
+        run_configs,
+        "read_models_config",
+        side_effect=lambda config: providers[config],
+    ):
+        runs = run_configs.resolve_config_runs(args, ["--log-level", "INFO"])
+
+    assert [(run.config, run.dataset) for run in runs] == [
+        ("xai-high", "v1"),
+        ("xai-high", "v2"),
+        ("openai-high", "v1"),
+        ("openai-high", "v2"),
+        ("xai-low", "v1"),
+        ("xai-low", "v2"),
+    ]
+    assert [run.rate_limit_divisor for run in runs] == [4, 4, 2, 2, 4, 4]
+    assert runs[0].submission_dir == Path("submissions/xai-high/v1")
+    assert runs[1].logs_dir == Path("logs/xai-high/v2")
+    assert runs[0].command[-2:] == ("--data_dir", "data/v1")
+    assert runs[1].command[-2:] == ("--data_dir", "data/v2")
+
+
+def test_parse_args_forwards_run_all_options():
+    args, forwarded = run_configs.parse_args(
+        [
+            "--configs",
+            "xai-high",
+            "xai-low",
+            "--data_dir",
+            "data/v2",
+            "--save_submission_root",
+            "submissions",
+            "--run_name",
+            "v2",
+            "--log-level",
+            "INFO",
+        ]
+    )
+
+    assert args.configs == ["xai-high", "xai-low"]
+    assert forwarded == ["--data_dir", "data/v2", "--log-level", "INFO"]
+
+
+def test_parse_args_accepts_named_datasets_without_run_name():
+    args, forwarded = run_configs.parse_args(
+        [
+            "--configs",
+            "xai-high",
+            "xai-low",
+            "--datasets",
+            "v1=data/v1",
+            "v2=data/v2",
+            "--save_submission_root",
+            "submissions",
+            "--log-level",
+            "INFO",
+        ]
+    )
+
+    assert args.datasets == ["v1=data/v1", "v2=data/v2"]
+    assert args.run_name is None
+    assert forwarded == ["--log-level", "INFO"]
+
+
+def test_named_datasets_reject_forwarded_data_dir():
+    with pytest.raises(SystemExit):
+        run_configs.parse_args(
+            [
+                "--configs",
+                "xai-high",
+                "--datasets",
+                "v1=data/v1",
+                "--data_dir",
+                "data/v2",
+            ]
+        )
+
+
+class FakeProcess:
+    def __init__(self, release: asyncio.Event, returncode: int = 0):
+        self._release = release
+        self._planned_returncode = returncode
+        self.returncode = None
+        self.terminated = False
+        self.killed = False
+        self.stdout = asyncio.StreamReader()
+        self.stderr = asyncio.StreamReader()
+        self.stdout.feed_eof()
+        self.stderr.feed_eof()
+
+    async def wait(self):
+        await self._release.wait()
+        self.returncode = self._planned_returncode
+        return self.returncode
+
+    def terminate(self):
+        self.terminated = True
+        self._planned_returncode = -15
+        self._release.set()
+
+    def kill(self):
+        self.killed = True
+        self._planned_returncode = -9
+        self._release.set()
+
+
+def make_run(config: str, dataset: str = "v2") -> run_configs.ConfigRun:
+    return run_configs.ConfigRun(
+        config=config,
+        dataset=dataset,
+        provider="xai",
+        rate_limit_divisor=2,
+        submission_dir=Path("submissions") / config / "v2",
+        logs_dir=Path("logs") / config / "v2",
+        command=("python", "run_all.py", "--config", config),
+    )
+
+
+@pytest.mark.asyncio
+async def test_all_config_processes_start_before_any_finishes():
+    release = asyncio.Event()
+    started = []
+
+    async def process_factory(*command, **kwargs):
+        started.append(command[-1])
+        if len(started) == 2:
+            release.set()
+        return FakeProcess(release)
+
+    results = await asyncio.wait_for(
+        run_configs.run_all_configs(
+            [make_run("xai-high"), make_run("xai-low")],
+            process_factory=process_factory,
+        ),
+        timeout=1,
+    )
+
+    assert started == ["xai-high", "xai-low"]
+    assert [result.returncode for result in results] == [0, 0]
+
+
+@pytest.mark.asyncio
+async def test_config_failure_is_reported_without_stopping_other_configs():
+    release = asyncio.Event()
+    release.set()
+    returncodes = iter([0, 7])
+
+    async def process_factory(*command, **kwargs):
+        return FakeProcess(release, returncode=next(returncodes))
+
+    results = await run_configs.run_all_configs(
+        [make_run("xai-high"), make_run("xai-low")],
+        process_factory=process_factory,
+    )
+
+    assert [(result.config, result.dataset, result.returncode) for result in results] == [
+        ("xai-high", "v2", 0),
+        ("xai-low", "v2", 7),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_cancelling_config_terminates_its_process():
+    release = asyncio.Event()
+    process = FakeProcess(release)
+    started = asyncio.Event()
+
+    async def process_factory(*command, **kwargs):
+        started.set()
+        return process
+
+    task = asyncio.create_task(
+        run_configs.run_config(make_run("xai-high"), process_factory=process_factory)
+    )
+    await started.wait()
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert process.terminated is True
+    assert process.returncode == -15
