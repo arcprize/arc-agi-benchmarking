@@ -68,7 +68,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
   - `--configs`: Space-separated model config names to run concurrently.
   - `--save_submission_root`: Root directory; each child writes to `<root>/<config>/<dataset-or-run-name>`.
   - `--datasets`: Space-separated `NAME=PATH` datasets; launches every config against every dataset. `NAME` may be a safe relative path such as `v1/public_eval`, producing nested output directories.
-  - `--run_name`: Single-dataset run path such as `v2`; mutually exclusive with `--datasets`.
+  - `--run_name`: Single-dataset run path such as `v2/public_eval`; mutually exclusive with `--datasets`.
 - Scoring-specific:
   - `--submission_dir`: Where your run wrote outputs
   - `--results_dir` Where to write aggregated metrics/results
@@ -79,16 +79,23 @@ For runs beyond the Quickstart:
 - Multiple configs: use `uv run cli/run_configs.py`. It starts one `run_all.py` process per config concurrently, gives each process isolated submission/checkpoint/log directories, and prefixes console output with the config name:
   ```bash
   uv run cli/run_configs.py \
-    --configs xai-grok-4-5-high xai-grok-4-5-medium xai-grok-4-5-low \
+    --configs \
+      gpt-5-2-2025-12-11-thinking-none \
+      gpt-5-2-2025-12-11-thinking-low \
+      gpt-5-2-2025-12-11-thinking-medium \
+      gpt-5-2-2025-12-11-thinking-high \
+      gpt-5-2-2025-12-11-thinking-xhigh \
     --datasets \
       v1/public_eval=data/v1/public_eval \
+      v1/semi_private_eval=data/v1/semi_private_eval \
       v2/public_eval=data/v2/public_eval \
+      v2/semi_private_eval=data/v2/semi_private_eval \
     --save_submission_root submissions \
     --log-level INFO
   ```
-  This example starts six child runs and writes to `submissions/<config>/v1/public_eval` and `submissions/<config>/v2/public_eval`. Provider rate limits are shared automatically across every child: all six XAI runs receive one-sixth of the effective XAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
+  This is the normal full benchmark layout: each config runs against `public_eval` and `semi_private_eval` for both v1 and v2. The example starts twenty child runs and writes to `submissions/<config>/<version>/<eval_type>`, such as `submissions/gpt-5-2-2025-12-11-thinking-high/v1/public_eval`. Provider rate limits are shared automatically across every child: all twenty OpenAI runs receive one-twentieth of the effective OpenAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
 
-  The original single-dataset form remains available with `--data_dir data/v2 --run_name v2` instead of `--datasets`.
+  The original single-dataset form remains available with `--data_dir data/v2/public_eval --run_name v2/public_eval` instead of `--datasets`.
 - Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.
 See the CLI parameters section for flag details.
 
