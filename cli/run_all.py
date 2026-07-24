@@ -721,6 +721,7 @@ if __name__ == "__main__":
             data_dir=args.data_dir,
             output_dir=args.save_submission_dir,
             num_attempts=args.num_attempts,
+            max_tasks_per_run=args.max_tasks_per_run,
         )
         print(preflight_report)
 

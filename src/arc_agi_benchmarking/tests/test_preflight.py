@@ -322,6 +322,34 @@ class TestRunPreflight:
                 assert report.cost_estimate is not None
                 assert len(report.validations) == 4  # config, api key, data dir, output dir
 
+    def test_task_limit_caps_cost_estimate_but_not_data_validation(self):
+        """Validate all files while estimating only the tasks scheduled this run."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for task_index in range(3):
+                task_file = Path(tmpdir) / f"task{task_index}.json"
+                task_file.write_text(json.dumps({
+                    "train": [{"input": [[1]], "output": [[2]]}],
+                    "test": [{"input": [[3]], "output": [[4]]}]
+                }))
+
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+                report = run_preflight(
+                    config_name="gpt-4o-2024-11-20",
+                    data_dir=tmpdir,
+                    output_dir=os.path.join(tmpdir, "output"),
+                    num_attempts=2,
+                    max_tasks_per_run=2,
+                )
+
+        assert report.all_passed is True
+        assert report.cost_estimate is not None
+        assert report.cost_estimate.num_tasks == 2
+        assert report.cost_estimate.total_attempts == 4
+        assert any(
+            "Found 3 valid task files" in validation.message
+            for validation in report.validations
+        )
+
     def test_preflight_with_invalid_config(self):
         """Test preflight with an invalid config name."""
         with tempfile.TemporaryDirectory() as tmpdir:
