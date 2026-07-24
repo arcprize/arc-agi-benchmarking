@@ -29,8 +29,8 @@ dependencies = [
     "jiter==0.6.1",
     "packaging==24.1",
     "pluggy==1.5.0",
-    "pydantic==2.9.2",
-    "pydantic_core==2.23.4",
+    "pydantic==2.13.4",
+    "pydantic-core==2.46.4",
     "pyparsing==3.2.1",
     "pytest==8.3.5",
     "python-dotenv==1.0.1",
@@ -48,8 +48,8 @@ dependencies = [
     "certifi==2024.8.30",
     "charset-normalizer==3.4.0",
     "google-api-core==2.24.1",
-    "google-auth==2.38.0",
-    "google-genai==1.14.0",
+    "google-auth==2.56.2",
+    "google-genai==2.14.0",
     "googleapis-common-protos==1.68.0",
     "openai==1.95.1",
     "proto-plus==1.26.0",
@@ -58,7 +58,7 @@ dependencies = [
     "pyasn1_modules==0.4.1",
     "requests==2.32.3",
     "rsa==4.9",
-    "uritemplate==4.1.1"
+    "uritemplate==4.1.1",
 ]
 
 description = "Code for testing model on ARC-AGI-Bench"
