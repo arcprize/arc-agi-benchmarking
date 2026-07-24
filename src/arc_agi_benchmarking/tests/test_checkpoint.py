@@ -292,6 +292,24 @@ class TestBatchProgressManager:
         assert task.status == TaskStatus.FAILED
         assert task.error == "API error"
 
+    def test_requeue_task(self, manager: BatchProgressManager):
+        manager.initialize_tasks(["task_1", "task_2"])
+        manager.claim_task("task_1")
+        manager.mark_failed("task_1", error="API error")
+        manager.claim_task("task_2")
+
+        assert manager.requeue_task("task_1")
+        assert manager.requeue_task("task_2")
+
+        failed_task = manager.progress.tasks["task_1"]
+        in_progress_task = manager.progress.tasks["task_2"]
+        assert failed_task.status == TaskStatus.PENDING
+        assert failed_task.error is None
+        assert failed_task.worker_id is None
+        assert failed_task.started_at is None
+        assert failed_task.completed_at is None
+        assert in_progress_task.status == TaskStatus.PENDING
+
     def test_mark_failed_accumulates_costs(self, manager: BatchProgressManager):
         manager.initialize_tasks(["task_1", "task_2"])
         manager.claim_task("task_1")
@@ -399,6 +417,59 @@ class TestBatchProgressManager:
         assert manager.progress.tasks["task_2"].status == TaskStatus.PENDING
         assert manager.progress.tasks["task_2"].error is None
         assert manager.progress.tasks["task_3"].status == TaskStatus.PENDING
+
+    def test_resume_requeues_unfinished_tasks_without_submissions(
+        self, tmp_path: Path
+    ):
+        """
+        Regression test: resume should rerun failed and interrupted tasks when
+        no submission file exists, instead of requiring checkpoint deletion.
+        """
+        from arc_agi_benchmarking.utils.submission_exists import submission_exists
+
+        submission_dir = tmp_path / "submissions"
+        submission_dir.mkdir(parents=True)
+
+        completed_submission = submission_dir / "task_1.json"
+        completed_submission.write_text('{"attempt_1": [[1, 2]], "attempt_2": [[3, 4]]}')
+
+        checkpoint_dir = submission_dir / ".checkpoints"
+        storage = LocalStorageBackend(checkpoint_dir)
+        manager = BatchProgressManager(storage, run_id="test_config")
+
+        all_task_ids = ["task_1", "task_2", "task_3", "task_4"]
+        manager.initialize_tasks(all_task_ids, attempts_per_task=2)
+        manager.claim_task("task_1")
+        manager.mark_completed("task_1")
+        manager.claim_task("task_2")
+        manager.mark_failed("task_2", "API error")
+        manager.claim_task("task_3")
+        # task_3 remains in progress to simulate interruption
+
+        tasks_to_run = []
+        for task_id in all_task_ids:
+            task_progress = manager.progress.tasks.get(task_id)
+            if not task_progress:
+                continue
+
+            if submission_exists(str(submission_dir), task_id):
+                if task_progress.status != TaskStatus.COMPLETED:
+                    manager.mark_completed(task_id)
+                continue
+
+            if task_progress.status == TaskStatus.COMPLETED:
+                continue
+
+            if task_progress.status != TaskStatus.PENDING:
+                manager.requeue_task(task_id)
+
+            tasks_to_run.append(task_id)
+
+        assert tasks_to_run == ["task_2", "task_3", "task_4"]
+        assert manager.progress.tasks["task_1"].status == TaskStatus.COMPLETED
+        assert manager.progress.tasks["task_2"].status == TaskStatus.PENDING
+        assert manager.progress.tasks["task_3"].status == TaskStatus.PENDING
+        assert manager.progress.tasks["task_4"].status == TaskStatus.PENDING
 
 
 class TestTaskCheckpointManager:

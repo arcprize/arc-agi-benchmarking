@@ -325,7 +325,8 @@ async def main(task_list_file: Optional[str],
                logs_base_dir: Path,
                max_task_timeout: Optional[float] = None,
                circuit_breaker_threshold: Optional[int] = None,
-               resume: bool = True) -> int:
+               resume: bool = True,
+               limit: Optional[int] = None) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -366,6 +367,10 @@ async def main(task_list_file: Optional[str],
         logger.error(f"Error loading tasks: {e}", exc_info=True)
         return 1 # Return an error code
 
+    if limit:
+        task_ids = task_ids[:limit]
+        logger.info(f"Limiting to {limit} tasks")
+
     # --- Checkpointing Setup ---
     # Note: save_submission_dir is expected to include config name (e.g., submissions/config)
     checkpoint_dir = Path(save_submission_dir) / ".checkpoints"
@@ -385,29 +390,53 @@ async def main(task_list_file: Optional[str],
 
     # Determine which tasks to run
     if resume:
-        # Only run pending tasks that don't already have submission files on disk
+        # Run any unfinished task that doesn't already have a submission on disk.
+        # This lets interrupted runs pick up failed/in-progress tasks automatically.
         tasks_to_run = []
         skipped_existing_submissions = 0
+        requeued_unfinished_tasks = 0
         for task_id in task_ids:
             task_progress = progress_manager.progress.tasks.get(task_id)
-            if not task_progress or task_progress.status != TaskStatus.PENDING:
+            if not task_progress:
                 continue
+
             # Check if submission already exists on disk (handles pre-checkpoint runs)
             if submission_exists(save_submission_dir, task_id):
-                progress_manager.mark_completed(task_id)
-                skipped_existing_submissions += 1
+                if task_progress.status != TaskStatus.COMPLETED:
+                    progress_manager.mark_completed(task_id)
+                    skipped_existing_submissions += 1
                 continue
+
+            if task_progress.status == TaskStatus.COMPLETED:
+                # Checkpoint says completed but no submission file — requeue
+                logger.warning(f"Task {task_id} marked completed but no submission found on disk. Requeuing.")
+                progress_manager.requeue_task(task_id)
+                requeued_unfinished_tasks += 1
+                tasks_to_run.append(task_id)
+                continue
+
+            if task_progress.status != TaskStatus.PENDING:
+                progress_manager.requeue_task(task_id)
+                requeued_unfinished_tasks += 1
+
             tasks_to_run.append(task_id)
 
         completed_count = progress_manager.progress.completed_count
         failed_count = progress_manager.progress.failed_count
-        if completed_count > 0 or failed_count > 0 or skipped_existing_submissions > 0:
+        if (
+            completed_count > 0
+            or failed_count > 0
+            or skipped_existing_submissions > 0
+            or requeued_unfinished_tasks > 0
+        ):
             logger.info(
                 f"Resuming: {completed_count} completed, {failed_count} failed, "
                 f"{len(tasks_to_run)} remaining"
             )
             if skipped_existing_submissions > 0:
                 logger.info(f"Marked {skipped_existing_submissions} task(s) as completed (existing submissions found on disk)")
+            if requeued_unfinished_tasks > 0:
+                logger.info(f"Requeued {requeued_unfinished_tasks} unfinished task(s) with no submission file")
     else:
         tasks_to_run = task_ids
         logger.info("Resume disabled - running all tasks")
@@ -424,6 +453,22 @@ async def main(task_list_file: Optional[str],
         return 1
 
     logger.info(f"Total jobs to process: {len(all_jobs_to_run)}")
+
+    # Check if this is an Anthropic batch config
+    model_config_check = get_model_config(config_to_test)
+    if model_config_check.kwargs.get("batch") and model_config_check.provider == "anthropic":
+        from arc_agi_benchmarking.batch import run_anthropic_batch
+        logger.info("Anthropic batch mode detected. Submitting all tasks as a single batch.")
+        return await run_anthropic_batch(
+            config_name=config_to_test,
+            task_ids=tasks_to_run,
+            data_dir=data_dir,
+            save_submission_dir=save_submission_dir,
+            num_attempts=num_attempts,
+            retry_attempts=retry_attempts,
+            progress_manager=progress_manager,
+            overwrite_submission=overwrite_submission,
+        )
 
     try:
         all_provider_limits = read_provider_rate_limits()
@@ -611,6 +656,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable resume - run all tasks even if some are already completed."
     )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit the number of tasks to run (useful for testing)."
+    )
 
     args = parser.parse_args()
 
@@ -695,6 +746,7 @@ if __name__ == "__main__":
         max_task_timeout=args.max_task_timeout,
         circuit_breaker_threshold=args.circuit_breaker_threshold,
         resume=resume_enabled,
+        limit=args.limit,
     ))
     
     sys.exit(exit_code_from_main) 

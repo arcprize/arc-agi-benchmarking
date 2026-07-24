@@ -49,6 +49,214 @@ models:
 #### OpenAI ####
 ################
 
+  - name: "gpt-5-4-pro-low"
+    model_name: "gpt-5.4-pro"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "low"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 30.00
+      output: 180.00
+
+  - name: "gpt-5-4-pro-medium"
+    model_name: "gpt-5.4-pro"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 30.00
+      output: 180.00
+
+  - name: "gpt-5-4-pro-high"
+    model_name: "gpt-5.4-pro"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "high"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 30.00
+      output: 180.00
+
+  - name: "gpt-5-4-pro-xhigh"
+    model_name: "gpt-5.4-pro"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "xhigh"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 30.00
+      output: 180.00
+
+  - name: "gpt-5-4-mini-low"
+    model_name: "gpt-5.4-mini"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "low"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.75
+      output: 4.50
+
+  - name: "gpt-5-4-mini-medium"
+    model_name: "gpt-5.4-mini"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.75
+      output: 4.50
+
+  - name: "gpt-5-4-mini-high"
+    model_name: "gpt-5.4-mini"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "high"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.75
+      output: 4.50
+
+  - name: "gpt-5-4-mini-xhigh"
+    model_name: "gpt-5.4-mini"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "xhigh"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.75
+      output: 4.50
+
+  - name: "gpt-5-4-nano-low"
+    model_name: "gpt-5.4-nano"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "low"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.20
+      output: 1.25
+
+  - name: "gpt-5-4-nano-medium"
+    model_name: "gpt-5.4-nano"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.20
+      output: 1.25
+
+  - name: "gpt-5-4-nano-high"
+    model_name: "gpt-5.4-nano"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "high"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.20
+      output: 1.25
+
+  - name: "gpt-5-4-nano-xhigh"
+    model_name: "gpt-5.4-nano"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "xhigh"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-17"
+      input: 0.20
+      output: 1.25
+
+  - name: "gpt-5-4-low"
+    model_name: "gpt-5.4"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "low"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 2.50
+      output: 15.00
+
+  - name: "gpt-5-4-medium"
+    model_name: "gpt-5.4"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "medium"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 2.50
+      output: 15.00
+
+  - name: "gpt-5-4-high"
+    model_name: "gpt-5.4"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "high"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 2.50
+      output: 15.00
+
+  - name: "gpt-5-4-xhigh"
+    model_name: "gpt-5.4"
+    provider: "openai"
+    api_type: "responses"
+    background: true
+    reasoning:
+      effort: "xhigh"
+    max_completion_tokens: 128000
+    pricing:
+      date: "2026-03-04"
+      input: 2.50
+      output: 15.00
+
   - name: "gpt-5-2-pro-2025-12-11-medium"
     model_name: "gpt-5.2-pro-2025-12-11"
     provider: "openai"
@@ -583,6 +791,17 @@ models:
       input: 2.00
       output: 8.00
 
+  - name: "gpt-4o"
+    model_name: "gpt-4o"
+    provider: "openai"
+    api_type: "responses"
+    max_completion_tokens: 8000
+    stream: true
+    pricing:
+      date: "2025-02-23"
+      input: 2.50   # Standard input price; note: a cached input rate of 1.25 exists.
+      output: 10.00
+
   - name: "gpt-4o-2024-11-20"
     model_name: "gpt-4o-2024-11-20"
     provider: "openai"
@@ -760,8 +979,27 @@ models:
     max_completion_tokens: 65536
     pricing:
       date: "2025-04-28"
-      input: 1.10 
+      input: 1.10
       output: 4.40
+
+  # 2023-era models
+  - name: "gpt-3-5-turbo"
+    model_name: "gpt-3.5-turbo"
+    provider: "openai"
+    max_completion_tokens: 4096
+    pricing:
+      date: "2023-03-01"
+      input: 0.50
+      output: 1.50
+
+  - name: "gpt-4"
+    model_name: "gpt-4-0613"
+    provider: "openai"
+    max_completion_tokens: 8192
+    pricing:
+      date: "2023-03-14"
+      input: 30.00
+      output: 60.00
 
 ###################
 #### Grok (X.AI) ####
@@ -1131,6 +1369,16 @@ models:
       date: "2025-02-23"
       input: 15.00  # Single input price per 1M tokens.
       output: 75.00 # Single output price per 1M tokens.
+
+  # 2024-era model
+  - name: "claude-3-haiku"
+    model_name: "anthropic/claude-3-haiku"
+    provider: "openrouter"
+    max_tokens: 4096
+    pricing:
+      date: "2024-03-13"
+      input: 0.25
+      output: 1.25
 
 ##########################
 #### Claude Agent SDK ####
@@ -1524,6 +1772,60 @@ models:
       input: 3.00
       output: 15.00
 
+  - name: "grok-4.20-beta-0309b-reasoning"
+    model_name: "grok-4.20-beta-0309b-reasoning"
+    provider: "xai"
+    api_type: "responses"
+    max_completion_tokens: 128000
+    temperature: 0.7
+    top_p: 1.0
+    stream: true
+    pricing:
+      date: "2026-03-11"
+      input: 2.00
+      output: 6.00
+
+  - name: "grok-4.20-multi-agent-beta-0309"
+    model_name: "grok-4.20-multi-agent-beta-0309"
+    provider: "xai"
+    api_type: "responses"
+    max_completion_tokens: 128000
+    temperature: 0.7
+    top_p: 1.0
+    stream: true
+    pricing:
+      date: "2026-03-11"
+      input: 2.00
+      output: 6.00
+
+  - name: "grok-4.20-multi-agent-beta-0309-high"
+    model_name: "grok-4.20-multi-agent-beta-0309"
+    provider: "xai"
+    api_type: "responses"
+    max_completion_tokens: 128000
+    reasoning_effort: "high"
+    temperature: 0.7
+    top_p: 1.0
+    stream: true
+    pricing:
+      date: "2026-03-11"
+      input: 2.00
+      output: 6.00
+
+  - name: "grok-4.20-multi-agent-beta-0309-xhigh"
+    model_name: "grok-4.20-multi-agent-beta-0309"
+    provider: "xai"
+    api_type: "responses"
+    max_completion_tokens: 128000
+    reasoning_effort: "xhigh"
+    temperature: 0.7
+    top_p: 1.0
+    stream: true
+    pricing:
+      date: "2026-03-11"
+      input: 2.00
+      output: 6.00
+
   - name: "grok-3-mini-xai-high"
     model_name: "grok-3-mini"
     provider: "xai"
@@ -1545,6 +1847,8 @@ models:
     model_name: "accounts/fireworks/models/kimi-k2p5"
     provider: "fireworks"
     max_tokens: 100000
+    stream: true
+    reasoning_effort: "high"
     pricing:
       date: "2025-01-27"
       input: 0.60
@@ -1572,10 +1876,54 @@ models:
     model_name: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
     provider: "fireworks"
     max_tokens: 100000
+    stream: true
+    reasoning_effort: "high"
     pricing:
       date: "2025-07-21"
       input: 0.12
       output: 0.59
+
+  - name: "deepseek-v3.2"
+    model_name: "accounts/fireworks/models/deepseek-v3p2"
+    provider: "fireworks"
+    max_tokens: 100000
+    stream: true
+    reasoning_effort: "high"
+    rate_limit:
+      rate: 2
+      period: 60
+    pricing:
+      date: "2026-02-20"
+      input: 0.56
+      output: 1.68
+
+  - name: "glm-5"
+    model_name: "accounts/fireworks/models/glm-5"
+    provider: "fireworks"
+    max_tokens: 100000
+    stream: true
+    reasoning_effort: "high"
+    rate_limit:
+      rate: 2
+      period: 60
+    pricing:
+      date: "2026-02-20"
+      input: 1.00
+      output: 3.20
+
+  - name: "minimax-m2.5"
+    model_name: "accounts/fireworks/models/minimax-m2p5"
+    provider: "fireworks"
+    max_tokens: 100000
+    stream: true
+    reasoning_effort: "high"
+    rate_limit:
+      rate: 2
+      period: 60
+    pricing:
+      date: "2026-02-12"
+      input: 0.30
+      output: 1.20
 
 ########################
 ###### DashScope #######

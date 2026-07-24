@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Keys in model_config.kwargs that are for internal use only and should NOT be passed to the API
 # Note: 'reasoning' and 'background' ARE valid Responses API parameters and should pass through
-_CONFIG_ONLY_KWARGS = {"rate_limit", "pricing", "enable_thinking"}
+_CONFIG_ONLY_KWARGS = {"rate_limit", "pricing", "enable_thinking", "reasoning_effort"}
 
 
 def _filter_api_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -61,6 +61,25 @@ class _ResponsesResponse:
 
 
 class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
+    def _prepare_responses_kwargs(self) -> Dict[str, Any]:
+        """Prepare kwargs for Responses API calls."""
+        api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
+
+        # Default to privacy-first behavior for Responses API providers unless the
+        # model config explicitly opts into server-side storage.
+        if "store" not in api_kwargs:
+            api_kwargs["store"] = False
+
+        # reasoning is valid for OpenAI Responses API - re-add if present
+        if "reasoning" in self.model_config.kwargs:
+            api_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
+        elif "reasoning_effort" in self.model_config.kwargs:
+            api_kwargs["reasoning"] = {
+                "effort": self.model_config.kwargs["reasoning_effort"]
+            }
+
+        return api_kwargs
+
     def make_prediction(
         self,
         prompt: str,
@@ -256,11 +275,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         Make a call to the OpenAI Responses API
         """
-        api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
-
-        # reasoning is valid for OpenAI Responses API - re-add if present
-        if "reasoning" in self.model_config.kwargs:
-            api_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
+        api_kwargs = self._prepare_responses_kwargs()
 
         resp = self.client.responses.create(
             model=self.model_config.model_name, input=messages, **api_kwargs
@@ -292,12 +307,8 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         )
 
         # Prepare kwargs for streaming, removing 'stream' and config-only keys
-        api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
+        api_kwargs = self._prepare_responses_kwargs()
         stream_kwargs = {k: v for k, v in api_kwargs.items() if k != "stream"}
-
-        # reasoning is valid for OpenAI Responses API - re-add if present
-        if "reasoning" in self.model_config.kwargs:
-            stream_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
 
         try:
             # Create the stream
@@ -536,8 +547,13 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
         else:  # APIType.RESPONSES
             content = getattr(response, "output_text", "")
             if not content and getattr(response, "output", None):
-                # Fallback to first text block
-                content = response.output[0].content[0].text or ""
+                # Fallback: find the first message item (skip reasoning items)
+                for item in response.output:
+                    if getattr(item, "type", None) == "message" and hasattr(
+                        item, "content"
+                    ):
+                        content = item.content[0].text or ""
+                        break
         return content.strip()
 
     def _get_role(self, response: Any) -> str:
