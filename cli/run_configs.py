@@ -55,7 +55,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Example: uv run cli/run_configs.py --configs model-high model-low "
-            "--datasets v1=data/v1 v2=data/v2 --save_submission_root submissions"
+            "--datasets v1/public_eval=data/v1/public_eval "
+            "v2/public_eval=data/v2/public_eval "
+            "--save_submission_root submissions"
         ),
     )
     parser.add_argument(
@@ -85,7 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME=PATH",
         help=(
             "Named data directories to run as a config-by-dataset matrix, "
-            "such as v1=data/v1 v2=data/v2."
+            "such as v1/public_eval=data/v1/public_eval. NAME may be a safe "
+            "relative path and determines the output directory."
         ),
     )
     parser.add_argument(
@@ -107,11 +110,22 @@ def parse_dataset_specs(values: Sequence[str]) -> list[DatasetSpec]:
         if "=" not in value:
             raise ValueError(f"dataset must use NAME=PATH syntax: {value}")
         name, raw_path = value.split("=", 1)
-        if not name or name in {".", ".."} or Path(name).name != name:
-            raise ValueError(f"dataset name must be a non-empty path component: {name}")
+        name_path = Path(name)
+        if (
+            not name.strip()
+            or name_path.is_absolute()
+            or name_path == Path(".")
+            or ".." in name_path.parts
+        ):
+            raise ValueError(
+                "dataset name must be a non-empty relative path without '..': "
+                f"{name}"
+            )
         if not raw_path:
             raise ValueError(f"dataset path must not be empty: {name}")
-        datasets.append(DatasetSpec(name=name, data_dir=Path(raw_path)))
+        datasets.append(
+            DatasetSpec(name=name_path.as_posix(), data_dir=Path(raw_path))
+        )
 
     names = [dataset.name for dataset in datasets]
     if len(set(names)) != len(names):

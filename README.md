@@ -67,7 +67,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 - Multi-config launcher-specific:
   - `--configs`: Space-separated model config names to run concurrently.
   - `--save_submission_root`: Root directory; each child writes to `<root>/<config>/<dataset-or-run-name>`.
-  - `--datasets`: Space-separated `NAME=PATH` datasets; launches every config against every dataset.
+  - `--datasets`: Space-separated `NAME=PATH` datasets; launches every config against every dataset. `NAME` may be a safe relative path such as `v1/public_eval`, producing nested output directories.
   - `--run_name`: Single-dataset run path such as `v2`; mutually exclusive with `--datasets`.
 - Scoring-specific:
   - `--submission_dir`: Where your run wrote outputs
@@ -80,11 +80,13 @@ For runs beyond the Quickstart:
   ```bash
   uv run cli/run_configs.py \
     --configs xai-grok-4-5-high xai-grok-4-5-medium xai-grok-4-5-low \
-    --datasets v1=data/v1 v2=data/v2 \
+    --datasets \
+      v1/public_eval=data/v1/public_eval \
+      v2/public_eval=data/v2/public_eval \
     --save_submission_root submissions \
     --log-level INFO
   ```
-  This example starts six child runs and writes to `submissions/<config>/v1` and `submissions/<config>/v2`. Provider rate limits are shared automatically across every child: all six XAI runs receive one-sixth of the effective XAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
+  This example starts six child runs and writes to `submissions/<config>/v1/public_eval` and `submissions/<config>/v2/public_eval`. Provider rate limits are shared automatically across every child: all six XAI runs receive one-sixth of the effective XAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes.
 
   The original single-dataset form remains available with `--data_dir data/v2 --run_name v2` instead of `--datasets`.
 - Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.

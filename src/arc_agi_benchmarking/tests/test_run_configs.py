@@ -97,7 +97,10 @@ def test_resolve_config_runs_builds_config_by_dataset_matrix():
         configs=["xai-high", "openai-high", "xai-low"],
         save_submission_root=Path("submissions"),
         run_name=None,
-        datasets=["v1=data/v1", "v2=data/v2"],
+        datasets=[
+            "v1/public_eval=data/v1/public_eval",
+            "v2/public_eval=data/v2/public_eval",
+        ],
         logs_base_dir=Path("logs"),
     )
     providers = {
@@ -114,18 +117,18 @@ def test_resolve_config_runs_builds_config_by_dataset_matrix():
         runs = run_configs.resolve_config_runs(args, ["--log-level", "INFO"])
 
     assert [(run.config, run.dataset) for run in runs] == [
-        ("xai-high", "v1"),
-        ("xai-high", "v2"),
-        ("openai-high", "v1"),
-        ("openai-high", "v2"),
-        ("xai-low", "v1"),
-        ("xai-low", "v2"),
+        ("xai-high", "v1/public_eval"),
+        ("xai-high", "v2/public_eval"),
+        ("openai-high", "v1/public_eval"),
+        ("openai-high", "v2/public_eval"),
+        ("xai-low", "v1/public_eval"),
+        ("xai-low", "v2/public_eval"),
     ]
     assert [run.rate_limit_divisor for run in runs] == [4, 4, 2, 2, 4, 4]
-    assert runs[0].submission_dir == Path("submissions/xai-high/v1")
-    assert runs[1].logs_dir == Path("logs/xai-high/v2")
-    assert runs[0].command[-2:] == ("--data_dir", "data/v1")
-    assert runs[1].command[-2:] == ("--data_dir", "data/v2")
+    assert runs[0].submission_dir == Path("submissions/xai-high/v1/public_eval")
+    assert runs[1].logs_dir == Path("logs/xai-high/v2/public_eval")
+    assert runs[0].command[-2:] == ("--data_dir", "data/v1/public_eval")
+    assert runs[1].command[-2:] == ("--data_dir", "data/v2/public_eval")
 
 
 def test_parse_args_forwards_run_all_options():
@@ -156,8 +159,8 @@ def test_parse_args_accepts_named_datasets_without_run_name():
             "xai-high",
             "xai-low",
             "--datasets",
-            "v1=data/v1",
-            "v2=data/v2",
+            "v1/public_eval=data/v1/public_eval",
+            "v2/public_eval=data/v2/public_eval",
             "--save_submission_root",
             "submissions",
             "--log-level",
@@ -165,9 +168,32 @@ def test_parse_args_accepts_named_datasets_without_run_name():
         ]
     )
 
-    assert args.datasets == ["v1=data/v1", "v2=data/v2"]
+    assert args.datasets == [
+        "v1/public_eval=data/v1/public_eval",
+        "v2/public_eval=data/v2/public_eval",
+    ]
     assert args.run_name is None
     assert forwarded == ["--log-level", "INFO"]
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        "/v1/public_eval=data/v1/public_eval",
+        "../public_eval=data/v1/public_eval",
+        "v1/../../public_eval=data/v1/public_eval",
+    ],
+)
+def test_named_datasets_reject_unsafe_output_paths(dataset):
+    with pytest.raises(SystemExit):
+        run_configs.parse_args(
+            [
+                "--configs",
+                "xai-high",
+                "--datasets",
+                dataset,
+            ]
+        )
 
 
 def test_named_datasets_reject_forwarded_data_dir():
