@@ -207,6 +207,39 @@ class TestValidateOutputDir:
             assert result.passed is True
             assert "will be created" in result.message.lower()
 
+    def test_nested_nonexistent_dir_with_writable_ancestor(self):
+        """Test validation when several output path levels do not exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "config" / "v1" / "public_eval"
+
+            result = validate_output_dir(str(output_dir))
+
+            assert result.passed is True
+            assert "will be created" in result.message.lower()
+            assert result.details == str(output_dir.absolute())
+            assert output_dir.exists() is False
+
+    def test_nested_output_below_file_is_rejected(self):
+        """Test validation when an existing path component is a file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = Path(tmpdir) / "not-a-directory"
+            file_path.write_text("content")
+
+            result = validate_output_dir(str(file_path / "public_eval"))
+
+            assert result.passed is False
+            assert "not a directory" in result.details.lower()
+
+    def test_nested_output_with_unwritable_ancestor_is_rejected(self):
+        """Test validation when the nearest existing ancestor is not writable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "config" / "v1" / "public_eval"
+            with patch("arc_agi_benchmarking.utils.preflight.os.access", return_value=False):
+                result = validate_output_dir(str(output_dir))
+
+            assert result.passed is False
+            assert "nearest existing parent not writable" in result.details.lower()
+
     def test_file_instead_of_dir(self):
         """Test validation when path is a file, not a directory."""
         with tempfile.NamedTemporaryFile() as tmpfile:

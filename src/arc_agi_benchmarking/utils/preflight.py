@@ -244,10 +244,22 @@ def validate_output_dir(output_dir: str) -> ValidationResult:
     """Check if the output directory is writable."""
     path = Path(output_dir)
 
-    # If it doesn't exist, check if parent is writable
+    # If it doesn't exist, check the nearest existing ancestor. Output paths may
+    # contain several directories that will be created together (for example,
+    # submissions/<config>/v1/public_eval).
     if not path.exists():
-        parent = path.parent
-        if parent.exists() and os.access(parent, os.W_OK):
+        ancestor = path.parent
+        while not ancestor.exists() and ancestor != ancestor.parent:
+            ancestor = ancestor.parent
+
+        if not ancestor.is_dir():
+            return ValidationResult(
+                passed=False,
+                message=f"Cannot create output directory",
+                details=f"Path component is not a directory: {ancestor.absolute()}"
+            )
+
+        if os.access(ancestor, os.W_OK):
             return ValidationResult(
                 passed=True,
                 message=f"Output directory will be created",
@@ -257,7 +269,7 @@ def validate_output_dir(output_dir: str) -> ValidationResult:
             return ValidationResult(
                 passed=False,
                 message=f"Cannot create output directory",
-                details=f"Parent not writable: {parent.absolute()}"
+                details=f"Nearest existing parent not writable: {ancestor.absolute()}"
             )
 
     if not path.is_dir():
