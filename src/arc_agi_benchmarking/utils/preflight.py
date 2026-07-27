@@ -144,9 +144,15 @@ def validate_api_key(
     provider: str,
     api_key_env: Optional[str] = None,
 ) -> ValidationResult:
-    """Check the config-specific API key, falling back to provider defaults."""
+    """Check the config-specific key or the dedicated provider's fixed key."""
     if api_key_env:
         required_keys = [api_key_env]
+    elif provider == "openai":
+        return ValidationResult(
+            passed=False,
+            message="API key environment variable not configured for 'openai'",
+            details="Set api_key_env in the model config"
+        )
     elif provider not in PROVIDER_API_KEYS:
         return ValidationResult(
             passed=False,

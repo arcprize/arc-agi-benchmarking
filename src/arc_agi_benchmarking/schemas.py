@@ -300,6 +300,14 @@ class ModelConfig(BaseModel):
                     
         return values
 
+    @model_validator(mode='after')
+    def require_openai_api_key_env(self):
+        """Require OpenAI adapter configs to name their API key explicitly."""
+        if self.provider == 'openai' and not self.api_key_env:
+            raise ValueError("api_key_env is required when provider is 'openai'")
+        return self
+
+
 class ScoringResult(BaseModel):
     """
     Result of scoring a task, containing the score (accuracy), cost, and number of attempts.

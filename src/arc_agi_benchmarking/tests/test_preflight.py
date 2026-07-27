@@ -46,9 +46,17 @@ class TestValidateApiKey:
     def test_known_provider_with_key(self):
         """Test that a known provider with an API key passes."""
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
-            result = validate_api_key("openai")
+            result = validate_api_key("openai", "OPENAI_API_KEY")
             assert result.passed is True
             assert "OPENAI_API_KEY" in result.message
+
+    def test_openai_provider_requires_configured_key_name(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+            result = validate_api_key("openai")
+
+        assert result.passed is False
+        assert "not configured" in result.message
+        assert "api_key_env" in result.details
 
     def test_known_provider_without_key(self):
         """Test that a known provider without an API key fails."""

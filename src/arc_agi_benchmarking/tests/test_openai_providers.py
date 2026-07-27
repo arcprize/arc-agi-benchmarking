@@ -65,6 +65,7 @@ def mock_model_config(adapter_class):
         provider=provider_name, 
         pricing=ModelPricing(date="2024-01-01", input=1.0, output=2.0), 
         api_type=APIType.CHAT_COMPLETIONS, # Assuming chat completions for simplicity
+        api_key_env="OPENAI_API_KEY" if provider_name == "openai" else None,
         kwargs={"temperature": 0.5}
     )
 

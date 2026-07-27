@@ -52,6 +52,7 @@ models:
   - name: "gpt-5-2-pro-2025-12-11-medium"
     model_name: "gpt-5.2-pro-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -66,6 +67,7 @@ models:
   - name: "gpt-5-2-pro-2025-12-11-high"
     model_name: "gpt-5.2-pro-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -80,6 +82,7 @@ models:
   - name: "gpt-5-2-pro-2025-12-11-xhigh"
     model_name: "gpt-5.2-pro-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     # reasoning:
@@ -93,6 +96,7 @@ models:
   - name: "gpt-5-2-2025-12-11-thinking-xhigh"
     model_name: "gpt-5.2-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -107,6 +111,7 @@ models:
   - name: "gpt-5-2-2025-12-11-thinking-high"
     model_name: "gpt-5.2-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -121,6 +126,7 @@ models:
   - name: "gpt-5-2-2025-12-11-thinking-medium"
     model_name: "gpt-5.2-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -135,6 +141,7 @@ models:
   - name: "gpt-5-2-2025-12-11-thinking-low"
     model_name: "gpt-5.2-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -149,6 +156,7 @@ models:
   - name: "gpt-5-2-2025-12-11-thinking-none"
     model_name: "gpt-5.2-2025-12-11"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -163,6 +171,7 @@ models:
   - name: "gpt-5-1-2025-11-13-thinking-high"
     model_name: "gpt-5.1-2025-11-13"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -177,6 +186,7 @@ models:
   - name: "gpt-5-1-2025-11-13-thinking-medium"
     model_name: "gpt-5.1-2025-11-13"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -191,6 +201,7 @@ models:
   - name: "gpt-5-1-2025-11-13-thinking-low"
     model_name: "gpt-5.1-2025-11-13"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -205,6 +216,7 @@ models:
   - name: "gpt-5-1-2025-11-13-thinking-none"
     model_name: "gpt-5.1-2025-11-13"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -219,6 +231,7 @@ models:
   - name: "gpt-5-pro-2025-10-06"
     model_name: "gpt-5-pro-2025-10-06"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     reasoning:
@@ -232,6 +245,7 @@ models:
   - name: "gpt-5-2025-08-07-high"
     model_name: "gpt-5-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -246,6 +260,7 @@ models:
   - name: "gpt-5-2025-08-07-medium"
     model_name: "gpt-5-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "medium"
@@ -259,6 +274,7 @@ models:
   - name: "gpt-5-2025-08-07-low"
     model_name: "gpt-5-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "low"
@@ -272,6 +288,7 @@ models:
   - name: "gpt-5-2025-08-07-minimal"
     model_name: "gpt-5-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "minimal"
@@ -285,6 +302,7 @@ models:
   - name: "gpt-5-mini-2025-08-07-high"
     model_name: "gpt-5-mini-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -299,6 +317,7 @@ models:
   - name: "gpt-5-mini-2025-08-07-medium"
     model_name: "gpt-5-mini-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "medium"
@@ -313,6 +332,7 @@ models:
   - name: "gpt-5-mini-2025-08-07-low"
     model_name: "gpt-5-mini-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "low"
@@ -326,6 +346,7 @@ models:
   - name: "gpt-5-mini-2025-08-07-minimal"
     model_name: "gpt-5-mini-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "minimal"
@@ -339,6 +360,7 @@ models:
   - name: "gpt-5-nano-2025-08-07-high"
     model_name: "gpt-5-nano-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -353,6 +375,7 @@ models:
   - name: "gpt-5-nano-2025-08-07-medium"
     model_name: "gpt-5-nano-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "medium"
@@ -367,6 +390,7 @@ models:
   - name: "gpt-5-nano-2025-08-07-low"
     model_name: "gpt-5-nano-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "low"
@@ -381,6 +405,7 @@ models:
   - name: "gpt-5-nano-2025-08-07-minimal"
     model_name: "gpt-5-nano-2025-08-07"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "minimal"
@@ -394,6 +419,7 @@ models:
   - name: "o3-pro-2025-06-10-high"
     model_name: "o3-pro-2025-06-10"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -407,6 +433,7 @@ models:
   - name: "o3-pro-2025-06-10-medium"
     model_name: "o3-pro-2025-06-10"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "medium"
@@ -420,6 +447,7 @@ models:
   - name: "o3-pro-2025-06-10-low"
     model_name: "o3-pro-2025-06-10"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "low"
@@ -433,6 +461,7 @@ models:
   - name: "codex-mini-latest"
     model_name: "codex-mini-latest"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     max_completion_tokens: 100000
     pricing:
@@ -443,6 +472,7 @@ models:
   - name: "gpt-5-1-codex-mini-openai"
     model_name: "gpt-5.1-codex-mini"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     background: true
     max_completion_tokens: 100000
@@ -475,6 +505,7 @@ models:
   - name: "o3-2025-04-16-high"
     model_name: "o3-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -488,6 +519,7 @@ models:
   - name: "o3-2025-04-16-medium"
     model_name: "o3-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "medium"
@@ -502,6 +534,7 @@ models:
   - name: "o3-2025-04-16-low-2025-06-10"
     model_name: "o3-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "low"
@@ -516,6 +549,7 @@ models:
   - name: "o3-2025-04-16-low"
     model_name: "o3-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     reasoning_effort: "low"
     max_completion_tokens: 100000
     pricing:
@@ -526,6 +560,7 @@ models:
   - name: "o4-mini-2025-04-16-high"
     model_name: "o4-mini-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -539,6 +574,7 @@ models:
   - name: "o4-mini-2025-04-16-medium"
     model_name: "o4-mini-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     reasoning_effort: "medium"
     max_completion_tokens: 100000
     pricing:
@@ -549,6 +585,7 @@ models:
   - name: "o4-mini-2025-04-16-low"
     model_name: "o4-mini-2025-04-16"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     reasoning_effort: "low"
     max_completion_tokens: 100000
     pricing:
@@ -559,6 +596,7 @@ models:
   - name: "gpt-4-1-nano-2025-04-14"
     model_name: "gpt-4.1-nano-2025-04-14"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 10000
     pricing:
       date: "2025-04-14"
@@ -568,6 +606,7 @@ models:
   - name: "gpt-4-1-mini-2025-04-14"
     model_name: "gpt-4.1-mini-2025-04-14"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 10000
     pricing:
       date: "2025-04-14"
@@ -577,6 +616,7 @@ models:
   - name: "gpt-4-1-2025-04-14"
     model_name: "gpt-4.1-2025-04-14"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 10000
     pricing:
       date: "2025-04-14"
@@ -586,6 +626,7 @@ models:
   - name: "gpt-4o-2024-11-20"
     model_name: "gpt-4o-2024-11-20"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     max_completion_tokens: 8000
     stream: true
@@ -597,6 +638,7 @@ models:
   - name: "gpt-4o-2024-05-13"
     model_name: "gpt-4o-2024-05-13"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     max_completion_tokens: 4096
     pricing:
@@ -608,6 +650,7 @@ models:
   - name: "gpt-4o-mini-2024-07-18"
     model_name: "gpt-4o-mini-2024-07-18"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     max_completion_tokens: 8000
     pricing:
@@ -618,6 +661,7 @@ models:
   - name: "gpt-4-5-preview-2025-02-27"
     model_name: "gpt-4.5-preview-2025-02-27"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 10000
     pricing:
       date: "2025-03-15"
@@ -627,6 +671,7 @@ models:
   - name: "o3-mini-2025-01-31-high"
     model_name: "o3-mini-2025-01-31"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 100000
     reasoning_effort: "high"
     pricing:
@@ -637,6 +682,7 @@ models:
   - name: "o3-mini-2025-01-31-medium"
     model_name: "o3-mini-2025-01-31"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 100000
     reasoning_effort: "medium"
     pricing:
@@ -647,6 +693,7 @@ models:
   - name: "o3-mini-2025-01-31-low"
     model_name: "o3-mini-2025-01-31"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 100000
     reasoning_effort: "low"
     pricing:
@@ -657,6 +704,7 @@ models:
   - name: "o1-2024-12-17-low"
     model_name: "o1-2024-12-17"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 75000
     reasoning_effort: "low"
     pricing:
@@ -667,6 +715,7 @@ models:
   - name: "o1-2024-12-17-medium"
     model_name: "o1-2024-12-17"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 75000
     reasoning_effort: "medium"
     pricing:
@@ -677,6 +726,7 @@ models:
   - name: "o1-2024-12-17-high"
     model_name: "o1-2024-12-17"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 75000
     reasoning_effort: "high"
     pricing:
@@ -687,6 +737,7 @@ models:
   - name: "o1-pro-2025-03-19-high"
     model_name: "o1-pro-2025-03-19"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "high"
@@ -701,6 +752,7 @@ models:
   - name: "o1-pro-2025-03-19-medium"
     model_name: "o1-pro-2025-03-19"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "medium"
@@ -715,6 +767,7 @@ models:
   - name: "o1-pro-2025-03-19-low"
     model_name: "o1-pro-2025-03-19"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     reasoning:
       effort: "low"
@@ -729,6 +782,7 @@ models:
   - name: "gpt4o_mini"
     model_name: "gpt-4o-mini"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     api_type: "responses"
     max_completion_tokens: 10000
     pricing:
@@ -739,6 +793,7 @@ models:
   - name: "gpt-4.5-2025-02-21-alpha"
     model_name: "gpt-4.5-2025-02-21-alpha"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 4024
     pricing:
       date: "2025-02-23"
@@ -748,6 +803,7 @@ models:
   - name: "o1-preview-2024-09-12"
     model_name: "o1-preview-2024-09-12"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 32768
     pricing:
       date: "2025-04-28"
@@ -757,6 +813,7 @@ models:
   - name: "o1-mini-2024-09-12"
     model_name: "o1-mini-2024-09-12"
     provider: "openai"
+    api_key_env: "OPENAI_API_KEY"
     max_completion_tokens: 65536
     pricing:
       date: "2025-04-28"
