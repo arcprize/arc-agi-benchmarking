@@ -111,6 +111,7 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
   - name: "gpt-4o-2024-11-20"   # config name you reference on the CLI; typically includes the reasoning level for clarity (e.g., "-basic", "-advanced")
     model_name: "gpt-4o-2024-11-20"  # provider’s actual model id
     provider: "openai"         # must match an adapter
+    api_key_env: "OPENAI_API_KEY"  # required unless provider is random
     max_output_tokens: 4096    # optional; provider-specific
     temperature: 0.0           # optional; provider-specific
     pricing:
@@ -119,6 +120,7 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
       output: 15.00            # USD per 1M output tokens
   ```
   - Standard fields: `name`, `model_name`, `provider`, `pricing` (`input`/`output` per 1M tokens, `date` for traceability).
+  - API keys: every config except `provider: random` must set `api_key_env` to the environment variable containing its API key. Every adapter reads the named variable; adapters do not provide defaults.
   - Provider kwargs: any extra keys become `kwargs` and are passed directly to the SDK (e.g., `temperature`, `max_output_tokens`, `stream`, etc.).
 - Rate limits live in `provider_config.yml` (`rate`, `period` per provider).
 - Environment: set provider keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `HUGGING_FACE_API_KEY`). Copy `.env.example` to `.env` and fill in.

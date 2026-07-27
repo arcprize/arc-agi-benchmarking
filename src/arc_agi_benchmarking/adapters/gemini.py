@@ -1,5 +1,4 @@
 from .provider import ProviderAdapter
-import os
 import json
 from google import genai
 from google.genai import types
@@ -19,13 +18,9 @@ class _StreamResponse:
 class GeminiAdapter(ProviderAdapter):
     def init_client(self):
         """Initialize the Gemini client."""
-        api_key = os.environ.get("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY not found in environment variables")
-        
         self.generation_config_dict = self.model_config.kwargs
         
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=self.get_api_key())
         return client
 
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:

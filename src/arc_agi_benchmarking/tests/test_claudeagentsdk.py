@@ -68,6 +68,7 @@ def mock_model_config():
         name="test-claudeagentsdk-model",
         model_name="claude-sonnet-4-5-20250929",
         provider="claudeagentsdk",
+        api_key_env="ANTHROPIC_API_KEY",
         pricing=ModelPricing(date="2026-01-02", input=1.0, output=5.0),
         kwargs={}
     )
@@ -81,6 +82,7 @@ def adapter_instance(mock_model_config):
             mock_init.return_value = None
             adapter = ClaudeagentsdkAdapter.__new__(ClaudeagentsdkAdapter)
             adapter.model_config = mock_model_config
+            adapter._api_key = "test-key"
             adapter._query = None  # Each test overrides this with a generator
             adapter._ClaudeAgentOptions = Mock(return_value=Mock())
             return adapter

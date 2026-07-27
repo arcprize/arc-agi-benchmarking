@@ -1,4 +1,5 @@
 import abc
+import os
 from typing import List, Dict, Tuple, Any, Optional
 import json
 from datetime import datetime
@@ -23,6 +24,19 @@ class ProviderAdapter(abc.ABC):
         
         # Initialize the client
         self.client = self.init_client()
+
+    def get_api_key(self) -> str:
+        """Read the API key named by this model configuration."""
+        api_key_env = self.model_config.api_key_env
+        if not api_key_env:
+            raise ValueError(
+                f"api_key_env must be configured for provider '{self.model_config.provider}'"
+            )
+
+        api_key = os.environ.get(api_key_env)
+        if not api_key:
+            raise ValueError(f"{api_key_env} not found in environment variables")
+        return api_key
 
     @abc.abstractmethod
     def init_client(self):
