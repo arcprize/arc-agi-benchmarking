@@ -140,16 +140,21 @@ def validate_config_exists(config_name: str) -> ValidationResult:
         )
 
 
-def validate_api_key(provider: str) -> ValidationResult:
-    """Check if the required API key exists for the provider."""
-    if provider not in PROVIDER_API_KEYS:
+def validate_api_key(
+    provider: str,
+    api_key_env: Optional[str] = None,
+) -> ValidationResult:
+    """Check the config-specific API key, falling back to provider defaults."""
+    if api_key_env:
+        required_keys = [api_key_env]
+    elif provider not in PROVIDER_API_KEYS:
         return ValidationResult(
             passed=False,
             message=f"Unknown provider '{provider}'",
             details=f"Known providers: {', '.join(PROVIDER_API_KEYS.keys())}"
         )
-
-    required_keys = PROVIDER_API_KEYS[provider]
+    else:
+        required_keys = PROVIDER_API_KEYS[provider]
 
     if not required_keys:
         return ValidationResult(
@@ -345,7 +350,10 @@ def run_preflight(
 
     # 2. Validate API key (only if config was found)
     if model_config:
-        api_result = validate_api_key(model_config.provider)
+        api_result = validate_api_key(
+            model_config.provider,
+            model_config.api_key_env,
+        )
         validations.append(api_result)
     else:
         validations.append(ValidationResult(

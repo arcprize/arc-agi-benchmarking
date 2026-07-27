@@ -60,6 +60,31 @@ class TestValidateApiKey:
             assert result.passed is False
             assert "not found" in result.message.lower()
 
+    def test_config_specific_key_overrides_provider_default(self):
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "sk-openai12345678",
+                "THINKY_API_KEY": "thinky-test12345678",
+            },
+            clear=True,
+        ):
+            result = validate_api_key("openai", "THINKY_API_KEY")
+
+        assert result.passed is True
+        assert "THINKY_API_KEY" in result.message
+
+    def test_missing_config_specific_key_does_not_fall_back(self):
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "sk-openai12345678"},
+            clear=True,
+        ):
+            result = validate_api_key("openai", "THINKY_API_KEY")
+
+        assert result.passed is False
+        assert "THINKY_API_KEY" in result.details
+
     def test_random_provider_no_key_needed(self):
         """Test that the random provider doesn't need an API key."""
         result = validate_api_key("random")
