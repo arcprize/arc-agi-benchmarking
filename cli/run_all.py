@@ -34,9 +34,6 @@ from arc_agi_benchmarking.resilience import (
     task_timeout,
     get_circuit_breaker,
 )
-from arc_agi_benchmarking.checkpoint import BatchProgressManager, TaskStatus
-from arc_agi_benchmarking.storage import LocalStorageBackend
-
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
 
 logger = logging.getLogger(__name__)
@@ -271,22 +268,13 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
-                                  progress_manager: Optional[BatchProgressManager] = None,
-                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None) -> Optional[bool]:
+                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None) -> bool:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
-
-    # Claim the task for this worker (if using checkpointing)
-    if progress_manager is not None:
-        if not progress_manager.claim_task(task_id):
-            logger.debug(f"[Orchestrator] Task {task_id} already claimed or completed, skipping")
-            return None  # Skipped, not success or failure
 
     try:
         circuit_breaker.raise_if_open()
     except CircuitBreakerOpenError as e:
         logger.warning(f"[Orchestrator] Circuit breaker OPEN for {config_name}, skipping {task_id}. Recovery in {e.recovery_time:.1f}s")
-        if progress_manager is not None:
-            progress_manager.mark_failed(task_id, f"Circuit breaker open: {e}")
         return False
 
     @retry(
@@ -330,10 +318,16 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
         )
         logger.debug(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
         try:
-            arc_solver.generate_task_solution(
+            task_attempts = arc_solver.generate_task_solution(
                 data_dir=data_dir,
                 task_id=task_id
             )
+            if task_attempts is None and not submission_exists(
+                save_submission_dir, task_id
+            ):
+                raise RuntimeError(
+                    f"Task {task_id} completed without producing a submission"
+                )
             logger.debug(f"[Thread-{task_id}-{config_name}] Task attempt completed successfully.")
         finally:
             LOG_CONFIG_CTX.reset(config_token)
@@ -376,15 +370,11 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
 
         circuit_breaker.record_success()
         logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")
-        if progress_manager is not None:
-            progress_manager.mark_completed(task_id)
         return True
 
     except TaskTimeoutError as e:
         circuit_breaker.record_failure(e)
         logger.error(f"[Orchestrator] Task {task_id} ({config_name}) timed out after {e.elapsed:.2f}s (limit: {e.timeout}s)")
-        if progress_manager is not None:
-            progress_manager.mark_failed(task_id, f"Timeout after {e.elapsed:.2f}s")
         return False
 
     except Exception as e:
@@ -393,8 +383,6 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             logger.error(f"[Orchestrator] Failed after retries: {config_name} / {task_id}. {type(e).__name__}: {e}", exc_info=True)
         else:
             logger.error(f"[Orchestrator] Failed (non-retryable): {config_name} / {task_id}. {type(e).__name__}: {e}", exc_info=True)
-        if progress_manager is not None:
-            progress_manager.mark_failed(task_id, f"{type(e).__name__}: {e}")
         return False
 
 async def main(task_list_file: Optional[str],
@@ -426,6 +414,14 @@ async def main(task_list_file: Optional[str],
             if not task_ids:
                 logger.error(f"No task IDs found in {task_list_file}. Exiting.")
                 return 1 # Return an error code
+            unique_task_ids = list(dict.fromkeys(task_ids))
+            duplicate_count = len(task_ids) - len(unique_task_ids)
+            if duplicate_count:
+                logger.warning(
+                    f"Ignored {duplicate_count} duplicate task ID(s) from "
+                    f"{task_list_file}"
+                )
+            task_ids = unique_task_ids
             logger.info(f"Loaded {len(task_ids)} task IDs from {task_list_file}.")
         else:
             logger.info(f"No task list file provided. Inferring task list from data directory: {data_dir}")
@@ -449,48 +445,20 @@ async def main(task_list_file: Optional[str],
         logger.error(f"Error loading tasks: {e}", exc_info=True)
         return 1 # Return an error code
 
-    # --- Checkpointing Setup ---
-    # Note: save_submission_dir is expected to include config name (e.g., submissions/config)
-    checkpoint_dir = Path(save_submission_dir) / ".checkpoints"
-    storage = LocalStorageBackend(checkpoint_dir)
-    progress_manager = BatchProgressManager(
-        storage=storage,
-        run_id=config_to_test,
-    )
-
-    # Initialize all tasks (idempotent - only adds tasks not already tracked)
-    progress_manager.initialize_tasks(task_ids, attempts_per_task=num_attempts)
-
-    # Reset any stale in-progress tasks (from crashed workers)
-    stale_count = progress_manager.reset_stale_tasks(max_age_seconds=3600)
-    if stale_count > 0:
-        logger.info(f"Reset {stale_count} stale in-progress task(s)")
-
     # Determine which tasks to run
     if resume:
-        # Only run pending tasks that don't already have submission files on disk
-        tasks_to_run = []
-        skipped_existing_submissions = 0
-        for task_id in task_ids:
-            task_progress = progress_manager.progress.tasks.get(task_id)
-            if not task_progress or task_progress.status != TaskStatus.PENDING:
-                continue
-            # Check if submission already exists on disk (handles pre-checkpoint runs)
-            if submission_exists(save_submission_dir, task_id):
-                progress_manager.mark_completed(task_id)
-                skipped_existing_submissions += 1
-                continue
-            tasks_to_run.append(task_id)
-
-        completed_count = progress_manager.progress.completed_count
-        failed_count = progress_manager.progress.failed_count
-        if completed_count > 0 or failed_count > 0 or skipped_existing_submissions > 0:
+        tasks_to_run = [
+            task_id
+            for task_id in task_ids
+            if not submission_exists(save_submission_dir, task_id)
+        ]
+        skipped_existing_submissions = len(task_ids) - len(tasks_to_run)
+        if skipped_existing_submissions > 0:
             logger.info(
-                f"Resuming: {completed_count} completed, {failed_count} failed, "
+                f"Resuming from existing submissions: "
+                f"{skipped_existing_submissions} completed, "
                 f"{len(tasks_to_run)} remaining"
             )
-            if skipped_existing_submissions > 0:
-                logger.info(f"Marked {skipped_existing_submissions} task(s) as completed (existing submissions found on disk)")
     else:
         tasks_to_run = task_ids
         logger.info("Resume disabled - running all tasks")
@@ -508,7 +476,7 @@ async def main(task_list_file: Optional[str],
         all_jobs_to_run.append((config_to_test, task_id))
 
     if not all_jobs_to_run:
-        if resume and progress_manager.is_complete():
+        if resume:
             logger.info("All tasks already completed. Use --no-resume to re-run.")
             return 0
         logger.warning("No jobs to run (check config_to_test and task list). Exiting.")
@@ -550,7 +518,6 @@ async def main(task_list_file: Optional[str],
                 overwrite_submission, print_submission,
                 num_attempts, retry_attempts,
                 logs_base_dir,
-                progress_manager,
                 concurrency_limiter,
             ))
         except ValueError as e: # Specific error for model config issues
@@ -566,7 +533,6 @@ async def main(task_list_file: Optional[str],
     results = await asyncio.gather(*async_tasks_to_execute, return_exceptions=True)
 
     successful_runs = sum(1 for r in results if r is True)
-    skipped_runs = sum(1 for r in results if r is None)
     orchestrator_level_failures = sum(1 for r in results if r is False or isinstance(r, Exception))
 
     logger.info("--- Orchestrator Summary ---")
@@ -582,17 +548,6 @@ async def main(task_list_file: Optional[str],
             elif res is False: # Wrapper reported failure
                 logger.warning(f"  - Failure reported by wrapper for {original_job_config}/{original_job_task_id} (check ARCTester logs for this task/config)")
         exit_code = 1 # Indicate failure
-
-    # Log checkpoint progress summary
-    logger.info("--- Checkpoint Progress Summary ---")
-    summary = progress_manager.get_summary()
-    logger.info(
-        f"  Run: {summary['run_id']} | "
-        f"Total: {summary['total']} | "
-        f"Completed: {summary['completed']} | "
-        f"Failed: {summary['failed']} | "
-        f"Pending: {summary['pending']}"
-    )
 
     # Log circuit breaker statistics
     if PROVIDER_CIRCUIT_BREAKERS:
@@ -710,7 +665,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no-resume",
         action="store_true",
-        help="Disable resume - run all tasks even if some are already completed."
+        help=(
+            "Disable submission-based resume filtering. Use with "
+            "--overwrite_submission to regenerate existing submissions."
+        )
     )
     parser.add_argument(
         "--rate-limit-divisor",
@@ -724,7 +682,7 @@ if __name__ == "__main__":
         type=int,
         default=None,
         help=(
-            "Maximum number of pending tasks to schedule in this invocation. "
+            "Maximum number of unsubmitted tasks to schedule in this invocation. "
             "Applied independently to each config/dataset run."
         ),
     )

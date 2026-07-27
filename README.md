@@ -62,7 +62,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 - `--save_submission_dir`: Where to write outputs. Use the same flag for single-task and batch (alias: `--submissions-root` remains for backward compatibility). Recommended structure: `<save_submission_dir>/<config>/<version>/<eval_type>/`, ex: `submissions/gpt-4o-2024-11-20/v1/public_eval/`.
 - `--num_attempts`: How many attempts per test pair (per task).
 - `--retry_attempts`: Internal retries within an attempt if the provider call fails.
-- `--max-tasks-per-run`: Maximum pending tasks scheduled by each config/dataset child. Resume filtering happens before this cap is applied.
+- `--max-tasks-per-run`: Maximum unsubmitted tasks scheduled by each config/dataset child. Existing-submission filtering happens before this cap is applied.
 - `--log-level`: `DEBUG|INFO|WARNING|ERROR|CRITICAL|NONE`.
 - `--enable-metrics`: Toggle metrics collection (saved in `metrics_output/`).
 - Multi-config launcher-specific:
@@ -78,7 +78,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 ## Running models
 For runs beyond the Quickstart:
 - Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; use `run_configs.py` for multiple configs.
-- Multiple configs: use `uv run cli/run_configs.py`. It starts one `run_all.py` process per config concurrently, gives each process isolated submission/checkpoint/log directories, and prefixes console output with the config name:
+- Multiple configs: use `uv run cli/run_configs.py`. It starts one `run_all.py` process per config concurrently, gives each process isolated submission/log directories, and prefixes console output with the config name:
   ```bash
   uv run cli/run_configs.py \
     --configs \
