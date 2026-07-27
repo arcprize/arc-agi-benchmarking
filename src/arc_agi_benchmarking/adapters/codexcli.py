@@ -42,18 +42,9 @@ Web search is disabled.
     def init_client(self):
         """
         Initialize the Codex CLI adapter.
-        Requires OPENAI_API_KEY (or api_key/openai_api_key in model kwargs).
+        The configured key is forwarded to the CLI process.
         """
-        api_key = (
-            self.model_config.kwargs.get("openai_api_key")
-            or self.model_config.kwargs.get("api_key")
-            or os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("CODEX_API_KEY")
-        )
-        if not api_key:
-            raise ValueError(
-                "OPENAI_API_KEY not found in environment variables (or api_key/openai_api_key in model config)"
-            )
+        self.get_api_key()
         return None
 
     def make_prediction(
@@ -157,15 +148,9 @@ Web search is disabled.
         self._apply_cli_options(args, working_directory=working_directory)
 
         env = os.environ.copy()
-        api_key = (
-            self.model_config.kwargs.get("openai_api_key")
-            or self.model_config.kwargs.get("api_key")
-            or os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("CODEX_API_KEY")
-        )
-        if api_key:
-            env["OPENAI_API_KEY"] = api_key
-            env["CODEX_API_KEY"] = api_key
+        api_key = self.get_api_key()
+        env["OPENAI_API_KEY"] = api_key
+        env["CODEX_API_KEY"] = api_key
         if "base_url" in self.model_config.kwargs:
             env["OPENAI_BASE_URL"] = self.model_config.kwargs["base_url"]
         env.setdefault("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "arc_agi_benchmarking_codexcli")

@@ -1,5 +1,4 @@
 from .provider import ProviderAdapter
-import os
 import json
 from huggingface_hub import InferenceClient
 from datetime import datetime
@@ -14,12 +13,9 @@ class HuggingFaceFireworksAdapter(ProviderAdapter):
         """
         Initialize the Hugging Face Fireworks model
         """
-        if not os.environ.get("HUGGING_FACE_API_KEY"):
-            raise ValueError("HUGGING_FACE_API_KEY not found in environment variables")
-        
         client = InferenceClient(
             provider="fireworks-ai",
-            api_key=os.environ.get("HUGGING_FACE_API_KEY")
+            api_key=self.get_api_key()
         )
         return client
 

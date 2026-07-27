@@ -300,6 +300,14 @@ class ModelConfig(BaseModel):
                     
         return values
 
+    @model_validator(mode='after')
+    def require_api_key_env(self):
+        """Require authenticated provider configs to name their API key."""
+        if self.provider != 'random' and not self.api_key_env:
+            raise ValueError("api_key_env is required unless provider is 'random'")
+        return self
+
+
 class ScoringResult(BaseModel):
     """
     Result of scoring a task, containing the score (accuracy), cost, and number of attempts.

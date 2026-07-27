@@ -13,10 +13,6 @@ class DashScopeAdapter(OpenAIBaseAdapter):
 
     def init_client(self):
         """Initialize the OpenAI client configured for DashScope API."""
-        api_key = os.environ.get("DASHSCOPE_API_KEY")
-        if not api_key:
-            raise ValueError("DASHSCOPE_API_KEY not found in environment variables")
-
         # Use international endpoint by default
         # China: https://dashscope.aliyuncs.com/compatible-mode/v1
         # Singapore: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
@@ -25,4 +21,4 @@ class DashScopeAdapter(OpenAIBaseAdapter):
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         )
 
-        return OpenAI(api_key=api_key, base_url=base_url)
+        return OpenAI(api_key=self.get_api_key(), base_url=base_url)

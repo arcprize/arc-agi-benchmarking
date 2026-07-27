@@ -13,6 +13,7 @@ def _model_config() -> ModelConfig:
         name="test-together-model",
         model_name="deepseek-ai/DeepSeek-V4-Pro",
         provider="together",
+        api_key_env="TOGETHER_API_KEY",
         pricing=ModelPricing(date="2026-04-27", input=1.0, output=2.0),
         api_type=APIType.CHAT_COMPLETIONS,
         kwargs={"temperature": 0.0},
