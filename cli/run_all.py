@@ -23,6 +23,7 @@ from main import ARCTester
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits, get_provider_timeout_config
 from arc_agi_benchmarking.utils.submission_exists import submission_exists
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
+from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
 from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
@@ -110,6 +111,7 @@ DEFAULT_RETRY_ATTEMPTS = 2
 
 # --- Globals for Orchestrator ---
 PROVIDER_RATE_LIMITERS: Dict[str, AsyncRequestRateLimiter] = {}
+PROVIDER_CONCURRENCY_LIMITERS: Dict[str, ProviderConcurrencyLimiter] = {}
 PROVIDER_CIRCUIT_BREAKERS: Dict[str, CircuitBreaker] = {}
 PROVIDER_TIMEOUT_CONFIGS: Dict[str, Dict] = {}
 MODEL_CONFIG_CACHE: Dict[str, Any] = {}
@@ -118,6 +120,38 @@ def get_model_config(config_name: str):
     if config_name not in MODEL_CONFIG_CACHE:
         MODEL_CONFIG_CACHE[config_name] = read_models_config(config_name)
     return MODEL_CONFIG_CACHE[config_name]
+
+
+def get_or_create_concurrency_limiter(
+    provider_name: str,
+    max_concurrency: Optional[int],
+) -> Optional[ProviderConcurrencyLimiter]:
+    """Return the provider's CLI-configured cross-process concurrency limiter."""
+    if max_concurrency is None:
+        return None
+    if isinstance(max_concurrency, bool) or not isinstance(max_concurrency, int):
+        raise ValueError(
+            f"max_concurrency for provider '{provider_name}' must be an integer"
+        )
+    if max_concurrency < 1:
+        raise ValueError(
+            f"max_concurrency for provider '{provider_name}' must be at least 1"
+        )
+
+    limiter = PROVIDER_CONCURRENCY_LIMITERS.get(provider_name)
+    if limiter is None:
+        limiter = ProviderConcurrencyLimiter(provider_name, max_concurrency)
+        PROVIDER_CONCURRENCY_LIMITERS[provider_name] = limiter
+        logger.info(
+            f"Initializing GLOBAL concurrency limiter for '{provider_name}' "
+            f"with max_concurrency={max_concurrency}."
+        )
+    elif limiter.max_concurrency != max_concurrency:
+        raise ValueError(
+            f"Conflicting max_concurrency values for provider '{provider_name}': "
+            f"{limiter.max_concurrency} and {max_concurrency}"
+        )
+    return limiter
 
 def get_or_create_rate_limiter(
     provider_name: str,
@@ -237,7 +271,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
-                                  progress_manager: Optional[BatchProgressManager] = None) -> Optional[bool]:
+                                  progress_manager: Optional[BatchProgressManager] = None,
+                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None) -> Optional[bool]:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     # Claim the task for this worker (if using checkpointing)
@@ -306,20 +341,38 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             logging.getLogger().removeHandler(file_handler)
             file_handler.close()
 
+    async def _execute_task() -> None:
+        timeout_str = f"{task_timeout_seconds}s" if task_timeout_seconds else "none"
+        logger.info(
+            f"[Orchestrator] Executing {task_id} for {config_name} "
+            f"(timeout={timeout_str})"
+        )
+        if task_timeout_seconds:
+            await task_timeout(
+                _synchronous_task_execution_attempt_with_tenacity,
+                task_timeout_seconds,
+                f"Task {task_id} ({config_name})"
+            )
+        else:
+            await asyncio.get_event_loop().run_in_executor(
+                None, _synchronous_task_execution_attempt_with_tenacity
+            )
+
     try:
         async with limiter:
-            timeout_str = f"{task_timeout_seconds}s" if task_timeout_seconds else "none"
-            logger.info(f"[Orchestrator] Rate limiter acquired for {config_name}. Executing {task_id} (timeout={timeout_str})")
-            if task_timeout_seconds:
-                await task_timeout(
-                    _synchronous_task_execution_attempt_with_tenacity,
-                    task_timeout_seconds,
-                    f"Task {task_id} ({config_name})"
-                )
+            if concurrency_limiter is None:
+                await _execute_task()
             else:
-                await asyncio.get_event_loop().run_in_executor(
-                    None, _synchronous_task_execution_attempt_with_tenacity
+                logger.info(
+                    f"[Orchestrator] Waiting for global provider concurrency "
+                    f"slot for {config_name} / {task_id}"
                 )
+                async with concurrency_limiter.slot():
+                    logger.info(
+                        f"[Orchestrator] Global provider concurrency slot acquired "
+                        f"for {config_name} / {task_id}"
+                    )
+                    await _execute_task()
 
         circuit_breaker.record_success()
         logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")
@@ -354,7 +407,8 @@ async def main(task_list_file: Optional[str],
                circuit_breaker_threshold: Optional[int] = None,
                resume: bool = True,
                rate_limit_divisor: int = 1,
-               max_tasks_per_run: Optional[int] = None) -> int:
+               max_tasks_per_run: Optional[int] = None,
+               max_concurrency: Optional[int] = None) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -483,6 +537,10 @@ async def main(task_list_file: Optional[str],
                 model_config_obj,
                 rate_limit_divisor,
             )
+            concurrency_limiter = get_or_create_concurrency_limiter(
+                provider_name,
+                max_concurrency,
+            )
             circuit_breaker = get_or_create_circuit_breaker(provider_name, all_provider_limits, circuit_breaker_threshold)
             task_timeout_val = get_task_timeout(provider_name, all_provider_limits, max_task_timeout)
             async_tasks_to_execute.append(run_single_test_wrapper(
@@ -493,6 +551,7 @@ async def main(task_list_file: Optional[str],
                 num_attempts, retry_attempts,
                 logs_base_dir,
                 progress_manager,
+                concurrency_limiter,
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
@@ -669,6 +728,15 @@ if __name__ == "__main__":
             "Applied independently to each config/dataset run."
         ),
     )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=None,
+        help=(
+            "Maximum in-flight ARC tasks per provider across all cooperating "
+            "run_all processes."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -676,6 +744,8 @@ if __name__ == "__main__":
         parser.error("--rate-limit-divisor must be at least 1")
     if args.max_tasks_per_run is not None and args.max_tasks_per_run < 1:
         parser.error("--max-tasks-per-run must be at least 1")
+    if args.max_concurrency is not None and args.max_concurrency < 1:
+        parser.error("--max-concurrency must be at least 1")
 
     resume_enabled = not args.no_resume
 
@@ -761,6 +831,7 @@ if __name__ == "__main__":
         resume=resume_enabled,
         rate_limit_divisor=args.rate_limit_divisor,
         max_tasks_per_run=args.max_tasks_per_run,
+        max_concurrency=args.max_concurrency,
     ))
     
     sys.exit(exit_code_from_main) 

@@ -7,15 +7,63 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from cli import run_all, run_configs
+from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
 
 
 @pytest.fixture(autouse=True)
 def clear_rate_limiter_cache():
     run_all.PROVIDER_RATE_LIMITERS.clear()
+    run_all.PROVIDER_CONCURRENCY_LIMITERS.clear()
     run_all.PROVIDER_CIRCUIT_BREAKERS.clear()
     yield
     run_all.PROVIDER_RATE_LIMITERS.clear()
+    run_all.PROVIDER_CONCURRENCY_LIMITERS.clear()
     run_all.PROVIDER_CIRCUIT_BREAKERS.clear()
+
+
+def test_provider_concurrency_limiter_is_optional():
+    assert run_all.get_or_create_concurrency_limiter("xai", None) is None
+
+
+@pytest.mark.parametrize("value", [0, -1, 1.5, True, "8"])
+def test_provider_concurrency_limiter_rejects_invalid_values(value):
+    with pytest.raises(ValueError, match="max_concurrency"):
+        run_all.get_or_create_concurrency_limiter("openai", value)
+
+
+@pytest.mark.asyncio
+async def test_provider_concurrency_limiter_shares_slots_between_instances(tmp_path):
+    first = ProviderConcurrencyLimiter(
+        "openai", max_concurrency=2, lock_root=tmp_path, poll_interval=0.01
+    )
+    second = ProviderConcurrencyLimiter(
+        "openai", max_concurrency=2, lock_root=tmp_path, poll_interval=0.01
+    )
+    release = asyncio.Event()
+    two_entered = asyncio.Event()
+    entered = 0
+
+    async def hold_slot(limiter):
+        nonlocal entered
+        async with limiter.slot():
+            entered += 1
+            if entered == 2:
+                two_entered.set()
+            await release.wait()
+
+    tasks = [
+        asyncio.create_task(hold_slot(first)),
+        asyncio.create_task(hold_slot(second)),
+        asyncio.create_task(hold_slot(first)),
+    ]
+
+    await asyncio.wait_for(two_entered.wait(), timeout=1)
+    await asyncio.sleep(0.05)
+    assert entered == 2
+
+    release.set()
+    await asyncio.wait_for(asyncio.gather(*tasks), timeout=1)
+    assert entered == 3
 
 
 def test_provider_rate_limit_is_divided_without_changing_period():
@@ -119,6 +167,7 @@ def test_resolve_config_runs_groups_providers_and_isolates_paths():
         run_name="v2",
         datasets=None,
         logs_base_dir=Path("logs"),
+        max_concurrency=8,
     )
     providers = {
         "xai-high": SimpleNamespace(provider="xai"),
@@ -137,6 +186,7 @@ def test_resolve_config_runs_groups_providers_and_isolates_paths():
     assert runs[0].submission_dir == Path("submissions/xai-high/v2")
     assert runs[0].logs_dir == Path("logs/xai-high/v2")
     assert "--rate-limit-divisor" in runs[0].command
+    assert runs[0].command[runs[0].command.index("--max-concurrency") + 1] == "8"
     assert runs[0].command[-2:] == ("--data_dir", "data/v2")
 
 
@@ -191,13 +241,31 @@ def test_parse_args_forwards_run_all_options():
             "submissions",
             "--run_name",
             "v2",
+            "--max-concurrency",
+            "8",
             "--log-level",
             "INFO",
         ]
     )
 
     assert args.configs == ["xai-high", "xai-low"]
+    assert args.max_concurrency == 8
     assert forwarded == ["--data_dir", "data/v2", "--log-level", "INFO"]
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_parse_args_rejects_invalid_max_concurrency(value):
+    with pytest.raises(SystemExit):
+        run_configs.parse_args(
+            [
+                "--configs",
+                "xai-high",
+                "--run_name",
+                "v2",
+                "--max-concurrency",
+                value,
+            ]
+        )
 
 
 def test_parse_args_accepts_named_datasets_without_run_name():

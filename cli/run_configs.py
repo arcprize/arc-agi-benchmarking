@@ -97,6 +97,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("logs"),
         help="Root for isolated per-config logs (default: logs).",
     )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=None,
+        help=(
+            "Maximum in-flight ARC tasks per provider across all child "
+            "processes."
+        ),
+    )
     return parser
 
 
@@ -140,6 +149,8 @@ def _validate_launcher_args(
 ) -> None:
     if len(set(args.configs)) != len(args.configs):
         parser.error("--configs must not contain duplicate configuration names")
+    if args.max_concurrency is not None and args.max_concurrency < 1:
+        parser.error("--max-concurrency must be at least 1")
 
     unsafe_configs = [
         config
@@ -212,6 +223,12 @@ def resolve_config_runs(
         for _dataset in datasets
     )
     runs: list[ConfigRun] = []
+    max_concurrency = getattr(args, "max_concurrency", None)
+    concurrency_args = (
+        ("--max-concurrency", str(max_concurrency))
+        if max_concurrency is not None
+        else ()
+    )
 
     for config in args.configs:
         provider = providers[config]
@@ -235,6 +252,7 @@ def resolve_config_runs(
                 str(logs_dir),
                 "--rate-limit-divisor",
                 str(divisor),
+                *concurrency_args,
                 *forwarded_args,
                 *dataset_args,
             )
