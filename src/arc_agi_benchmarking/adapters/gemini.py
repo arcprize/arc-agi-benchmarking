@@ -77,10 +77,15 @@ class GeminiAdapter(ProviderAdapter):
         usage_metadata = getattr(response, 'usage_metadata', None)
         logger.debug(f"Response usage metadata: {usage_metadata}")
         
-        input_tokens = getattr(usage_metadata, 'prompt_token_count', 0) if usage_metadata else 0
-        output_tokens = getattr(usage_metadata, 'candidates_token_count', 0) if usage_metadata else 0
-        reasoning_tokens = getattr(usage_metadata, 'thoughts_token_count', 0) if usage_metadata else 0
-        total_tokens = getattr(usage_metadata, 'total_token_count', 0) if usage_metadata else 0
+        # Gemini leaves token counts as None when a category is unused. In
+        # particular, minimal thinking commonly returns thoughts_token_count=None.
+        def token_count(field: str) -> int:
+            return (getattr(usage_metadata, field, 0) or 0) if usage_metadata else 0
+
+        input_tokens = token_count('prompt_token_count')
+        output_tokens = token_count('candidates_token_count')
+        reasoning_tokens = token_count('thoughts_token_count')
+        total_tokens = token_count('total_token_count')
         
         response_text = getattr(response, 'text', "")
 
