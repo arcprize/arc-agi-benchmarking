@@ -224,10 +224,22 @@ def validate_output_dir(output_dir: str) -> ValidationResult:
     """Check if the output directory is writable."""
     path = Path(output_dir)
 
-    # If it doesn't exist, check if parent is writable
+    # If it doesn't exist, check the nearest existing ancestor. Output paths may
+    # contain several directories that will be created together (for example,
+    # submissions/<config>/v1/public_eval).
     if not path.exists():
-        parent = path.parent
-        if parent.exists() and os.access(parent, os.W_OK):
+        ancestor = path.parent
+        while not ancestor.exists() and ancestor != ancestor.parent:
+            ancestor = ancestor.parent
+
+        if not ancestor.is_dir():
+            return ValidationResult(
+                passed=False,
+                message=f"Cannot create output directory",
+                details=f"Path component is not a directory: {ancestor.absolute()}"
+            )
+
+        if os.access(ancestor, os.W_OK):
             return ValidationResult(
                 passed=True,
                 message=f"Output directory will be created",
@@ -237,7 +249,7 @@ def validate_output_dir(output_dir: str) -> ValidationResult:
             return ValidationResult(
                 passed=False,
                 message=f"Cannot create output directory",
-                details=f"Parent not writable: {parent.absolute()}"
+                details=f"Nearest existing parent not writable: {ancestor.absolute()}"
             )
 
     if not path.is_dir():
@@ -295,6 +307,7 @@ def run_preflight(
     data_dir: str,
     output_dir: str,
     num_attempts: int = 2,
+    max_tasks_per_run: Optional[int] = None,
 ) -> PreflightReport:
     """
     Run all preflight validations and return a comprehensive report.
@@ -304,6 +317,7 @@ def run_preflight(
         data_dir: Directory containing task JSON files
         output_dir: Directory where submissions will be saved
         num_attempts: Number of attempts per task
+        max_tasks_per_run: Optional cap on tasks scheduled by this invocation
 
     Returns:
         PreflightReport with all validation results and cost estimate
@@ -312,6 +326,9 @@ def run_preflight(
     cost_estimate = None
     model_config = None
     num_tasks = 0
+
+    if max_tasks_per_run is not None and max_tasks_per_run < 1:
+        raise ValueError("max_tasks_per_run must be at least 1")
 
     # 1. Validate config exists
     config_result = validate_config_exists(config_name)
@@ -347,9 +364,10 @@ def run_preflight(
 
     # 5. Calculate cost estimate (only if we have valid config and tasks)
     if model_config and num_tasks > 0:
+        estimated_num_tasks = min(num_tasks, max_tasks_per_run) if max_tasks_per_run else num_tasks
         cost_estimate = estimate_cost(
             model_config=model_config,
-            num_tasks=num_tasks,
+            num_tasks=estimated_num_tasks,
             num_attempts=num_attempts,
         )
 
@@ -397,6 +415,13 @@ def main():
         default=2,
         help="Number of attempts per task"
     )
+    parser.add_argument(
+        "--max-tasks-per-run", "--max_tasks_per_run",
+        dest="max_tasks_per_run",
+        type=int,
+        default=None,
+        help="Maximum number of tasks to include in the cost estimate"
+    )
 
     args = parser.parse_args()
 
@@ -405,6 +430,7 @@ def main():
         data_dir=args.data_dir,
         output_dir=args.output_dir,
         num_attempts=args.num_attempts,
+        max_tasks_per_run=args.max_tasks_per_run,
     )
 
     print(report)

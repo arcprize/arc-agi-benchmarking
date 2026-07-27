@@ -23,6 +23,7 @@ from main import ARCTester
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits, get_provider_timeout_config
 from arc_agi_benchmarking.utils.submission_exists import submission_exists
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
+from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
 from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
@@ -110,6 +111,7 @@ DEFAULT_RETRY_ATTEMPTS = 2
 
 # --- Globals for Orchestrator ---
 PROVIDER_RATE_LIMITERS: Dict[str, AsyncRequestRateLimiter] = {}
+PROVIDER_CONCURRENCY_LIMITERS: Dict[str, ProviderConcurrencyLimiter] = {}
 PROVIDER_CIRCUIT_BREAKERS: Dict[str, CircuitBreaker] = {}
 PROVIDER_TIMEOUT_CONFIGS: Dict[str, Dict] = {}
 MODEL_CONFIG_CACHE: Dict[str, Any] = {}
@@ -119,10 +121,43 @@ def get_model_config(config_name: str):
         MODEL_CONFIG_CACHE[config_name] = read_models_config(config_name)
     return MODEL_CONFIG_CACHE[config_name]
 
+
+def get_or_create_concurrency_limiter(
+    provider_name: str,
+    max_concurrency: Optional[int],
+) -> Optional[ProviderConcurrencyLimiter]:
+    """Return the provider's CLI-configured cross-process concurrency limiter."""
+    if max_concurrency is None:
+        return None
+    if isinstance(max_concurrency, bool) or not isinstance(max_concurrency, int):
+        raise ValueError(
+            f"max_concurrency for provider '{provider_name}' must be an integer"
+        )
+    if max_concurrency < 1:
+        raise ValueError(
+            f"max_concurrency for provider '{provider_name}' must be at least 1"
+        )
+
+    limiter = PROVIDER_CONCURRENCY_LIMITERS.get(provider_name)
+    if limiter is None:
+        limiter = ProviderConcurrencyLimiter(provider_name, max_concurrency)
+        PROVIDER_CONCURRENCY_LIMITERS[provider_name] = limiter
+        logger.info(
+            f"Initializing GLOBAL concurrency limiter for '{provider_name}' "
+            f"with max_concurrency={max_concurrency}."
+        )
+    elif limiter.max_concurrency != max_concurrency:
+        raise ValueError(
+            f"Conflicting max_concurrency values for provider '{provider_name}': "
+            f"{limiter.max_concurrency} and {max_concurrency}"
+        )
+    return limiter
+
 def get_or_create_rate_limiter(
     provider_name: str,
     all_provider_limits: Dict,
-    model_config: Optional[Any] = None
+    model_config: Optional[Any] = None,
+    rate_limit_divisor: int = 1,
 ) -> AsyncRequestRateLimiter:
     """
     Get or create a rate limiter, checking for model-level config first.
@@ -131,7 +166,14 @@ def get_or_create_rate_limiter(
     1. Model-specific rate_limit in models.yml (uses config name as key)
     2. Provider-level rate limit in provider_config.yml
     3. Default rate limit
+
+    The effective configured rate is divided by ``rate_limit_divisor``. This
+    lets the multi-config launcher share a provider's request budget across
+    independent worker processes without changing the configured period.
     """
+    if rate_limit_divisor < 1:
+        raise ValueError("rate_limit_divisor must be at least 1")
+
     # Check for model-level rate limit first
     limiter_key = provider_name
     model_rate_limit = None
@@ -145,7 +187,8 @@ def get_or_create_rate_limiter(
     if limiter_key not in PROVIDER_RATE_LIMITERS:
         if model_rate_limit:
             # Use model-specific rate limit
-            config_rate = model_rate_limit.get('rate', DEFAULT_RATE_LIMIT_RATE)
+            original_config_rate = model_rate_limit.get('rate', DEFAULT_RATE_LIMIT_RATE)
+            config_rate = original_config_rate / rate_limit_divisor
             config_period = model_rate_limit.get('period', DEFAULT_RATE_LIMIT_PERIOD)
             if config_period <= 0:
                 actual_rate_for_limiter = float('inf')
@@ -156,16 +199,29 @@ def get_or_create_rate_limiter(
                 actual_rate_for_limiter = calculated_rps
                 config_capacity = model_rate_limit.get('capacity')
                 actual_capacity_for_limiter = config_capacity if config_capacity else max(1.0, calculated_rps)
-            logger.info(f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+            logger.info(
+                f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}': "
+                f"configured={original_config_rate:g} req/{config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
         elif provider_name not in all_provider_limits:
             logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default ({DEFAULT_RATE_LIMIT_RATE} req/{DEFAULT_RATE_LIMIT_PERIOD}s).")
-            default_config_rate = DEFAULT_RATE_LIMIT_RATE
+            original_config_rate = DEFAULT_RATE_LIMIT_RATE
+            default_config_rate = original_config_rate / rate_limit_divisor
             default_config_period = DEFAULT_RATE_LIMIT_PERIOD
             actual_rate_for_limiter = default_config_rate / default_config_period
             actual_capacity_for_limiter = max(1.0, actual_rate_for_limiter)
+            logger.info(
+                f"Initializing default rate limiter for '{provider_name}': "
+                f"configured={original_config_rate:g} req/{default_config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={default_config_rate:g} req/{default_config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
         else:
             limits = all_provider_limits[provider_name]
-            config_rate = limits['rate']
+            original_config_rate = limits['rate']
+            config_rate = original_config_rate / rate_limit_divisor
             config_period = limits['period']
             if config_period <= 0:
                 actual_rate_for_limiter = float('inf')
@@ -175,7 +231,12 @@ def get_or_create_rate_limiter(
                 calculated_rps = config_rate / config_period
                 actual_rate_for_limiter = calculated_rps
                 actual_capacity_for_limiter = max(1.0, calculated_rps)
-            logger.info(f"Initializing rate limiter for provider '{provider_name}' with rate={actual_rate_for_limiter:.2f} req/s, capacity={actual_capacity_for_limiter:.2f}.")
+            logger.info(
+                f"Initializing rate limiter for provider '{provider_name}': "
+                f"configured={original_config_rate:g} req/{config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
         PROVIDER_RATE_LIMITERS[limiter_key] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
     return PROVIDER_RATE_LIMITERS[limiter_key]
 
@@ -210,7 +271,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
-                                  progress_manager: Optional[BatchProgressManager] = None) -> Optional[bool]:
+                                  progress_manager: Optional[BatchProgressManager] = None,
+                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None) -> Optional[bool]:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     # Claim the task for this worker (if using checkpointing)
@@ -279,20 +341,38 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             logging.getLogger().removeHandler(file_handler)
             file_handler.close()
 
+    async def _execute_task() -> None:
+        timeout_str = f"{task_timeout_seconds}s" if task_timeout_seconds else "none"
+        logger.info(
+            f"[Orchestrator] Executing {task_id} for {config_name} "
+            f"(timeout={timeout_str})"
+        )
+        if task_timeout_seconds:
+            await task_timeout(
+                _synchronous_task_execution_attempt_with_tenacity,
+                task_timeout_seconds,
+                f"Task {task_id} ({config_name})"
+            )
+        else:
+            await asyncio.get_event_loop().run_in_executor(
+                None, _synchronous_task_execution_attempt_with_tenacity
+            )
+
     try:
         async with limiter:
-            timeout_str = f"{task_timeout_seconds}s" if task_timeout_seconds else "none"
-            logger.info(f"[Orchestrator] Rate limiter acquired for {config_name}. Executing {task_id} (timeout={timeout_str})")
-            if task_timeout_seconds:
-                await task_timeout(
-                    _synchronous_task_execution_attempt_with_tenacity,
-                    task_timeout_seconds,
-                    f"Task {task_id} ({config_name})"
-                )
+            if concurrency_limiter is None:
+                await _execute_task()
             else:
-                await asyncio.get_event_loop().run_in_executor(
-                    None, _synchronous_task_execution_attempt_with_tenacity
+                logger.info(
+                    f"[Orchestrator] Waiting for global provider concurrency "
+                    f"slot for {config_name} / {task_id}"
                 )
+                async with concurrency_limiter.slot():
+                    logger.info(
+                        f"[Orchestrator] Global provider concurrency slot acquired "
+                        f"for {config_name} / {task_id}"
+                    )
+                    await _execute_task()
 
         circuit_breaker.record_success()
         logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")
@@ -325,7 +405,10 @@ async def main(task_list_file: Optional[str],
                logs_base_dir: Path,
                max_task_timeout: Optional[float] = None,
                circuit_breaker_threshold: Optional[int] = None,
-               resume: bool = True) -> int:
+               resume: bool = True,
+               rate_limit_divisor: int = 1,
+               max_tasks_per_run: Optional[int] = None,
+               max_concurrency: Optional[int] = None) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -346,11 +429,11 @@ async def main(task_list_file: Optional[str],
             logger.info(f"Loaded {len(task_ids)} task IDs from {task_list_file}.")
         else:
             logger.info(f"No task list file provided. Inferring task list from data directory: {data_dir}")
-            task_ids = [
+            task_ids = sorted(
                 os.path.splitext(fname)[0] 
                 for fname in os.listdir(data_dir) 
                 if os.path.isfile(os.path.join(data_dir, fname)) and fname.endswith('.json')
-            ]
+            )
             if not task_ids:
                 logger.error(f"No task files (.json) found in {data_dir}. Exiting.")
                 return 1 # Return an error code
@@ -412,6 +495,14 @@ async def main(task_list_file: Optional[str],
         tasks_to_run = task_ids
         logger.info("Resume disabled - running all tasks")
 
+    if max_tasks_per_run is not None and len(tasks_to_run) > max_tasks_per_run:
+        available_task_count = len(tasks_to_run)
+        tasks_to_run = tasks_to_run[:max_tasks_per_run]
+        logger.info(
+            f"Limiting this run to {max_tasks_per_run} of "
+            f"{available_task_count} available task(s)"
+        )
+
     all_jobs_to_run: List[Tuple[str, str]] = []
     for task_id in tasks_to_run:
         all_jobs_to_run.append((config_to_test, task_id))
@@ -440,7 +531,16 @@ async def main(task_list_file: Optional[str],
         try:
             model_config_obj = get_model_config(config_name)
             provider_name = model_config_obj.provider
-            limiter = get_or_create_rate_limiter(provider_name, all_provider_limits, model_config_obj)
+            limiter = get_or_create_rate_limiter(
+                provider_name,
+                all_provider_limits,
+                model_config_obj,
+                rate_limit_divisor,
+            )
+            concurrency_limiter = get_or_create_concurrency_limiter(
+                provider_name,
+                max_concurrency,
+            )
             circuit_breaker = get_or_create_circuit_breaker(provider_name, all_provider_limits, circuit_breaker_threshold)
             task_timeout_val = get_task_timeout(provider_name, all_provider_limits, max_task_timeout)
             async_tasks_to_execute.append(run_single_test_wrapper(
@@ -451,6 +551,7 @@ async def main(task_list_file: Optional[str],
                 num_attempts, retry_attempts,
                 logs_base_dir,
                 progress_manager,
+                concurrency_limiter,
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
@@ -611,8 +712,40 @@ if __name__ == "__main__":
         action="store_true",
         help="Disable resume - run all tasks even if some are already completed."
     )
+    parser.add_argument(
+        "--rate-limit-divisor",
+        type=int,
+        default=1,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--max-tasks-per-run", "--max_tasks_per_run",
+        dest="max_tasks_per_run",
+        type=int,
+        default=None,
+        help=(
+            "Maximum number of pending tasks to schedule in this invocation. "
+            "Applied independently to each config/dataset run."
+        ),
+    )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=None,
+        help=(
+            "Maximum in-flight ARC tasks per provider across all cooperating "
+            "run_all processes."
+        ),
+    )
 
     args = parser.parse_args()
+
+    if args.rate_limit_divisor < 1:
+        parser.error("--rate-limit-divisor must be at least 1")
+    if args.max_tasks_per_run is not None and args.max_tasks_per_run < 1:
+        parser.error("--max-tasks-per-run must be at least 1")
+    if args.max_concurrency is not None and args.max_concurrency < 1:
+        parser.error("--max-concurrency must be at least 1")
 
     resume_enabled = not args.no_resume
 
@@ -658,6 +791,7 @@ if __name__ == "__main__":
             data_dir=args.data_dir,
             output_dir=args.save_submission_dir,
             num_attempts=args.num_attempts,
+            max_tasks_per_run=args.max_tasks_per_run,
         )
         print(preflight_report)
 
@@ -695,6 +829,9 @@ if __name__ == "__main__":
         max_task_timeout=args.max_task_timeout,
         circuit_breaker_threshold=args.circuit_breaker_threshold,
         resume=resume_enabled,
+        rate_limit_divisor=args.rate_limit_divisor,
+        max_tasks_per_run=args.max_tasks_per_run,
+        max_concurrency=args.max_concurrency,
     ))
     
     sys.exit(exit_code_from_main) 

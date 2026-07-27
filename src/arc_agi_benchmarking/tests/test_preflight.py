@@ -230,6 +230,39 @@ class TestValidateOutputDir:
             assert result.passed is True
             assert "will be created" in result.message.lower()
 
+    def test_nested_nonexistent_dir_with_writable_ancestor(self):
+        """Test validation when several output path levels do not exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "config" / "v1" / "public_eval"
+
+            result = validate_output_dir(str(output_dir))
+
+            assert result.passed is True
+            assert "will be created" in result.message.lower()
+            assert result.details == str(output_dir.absolute())
+            assert output_dir.exists() is False
+
+    def test_nested_output_below_file_is_rejected(self):
+        """Test validation when an existing path component is a file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = Path(tmpdir) / "not-a-directory"
+            file_path.write_text("content")
+
+            result = validate_output_dir(str(file_path / "public_eval"))
+
+            assert result.passed is False
+            assert "not a directory" in result.details.lower()
+
+    def test_nested_output_with_unwritable_ancestor_is_rejected(self):
+        """Test validation when the nearest existing ancestor is not writable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "config" / "v1" / "public_eval"
+            with patch("arc_agi_benchmarking.utils.preflight.os.access", return_value=False):
+                result = validate_output_dir(str(output_dir))
+
+            assert result.passed is False
+            assert "nearest existing parent not writable" in result.details.lower()
+
     def test_file_instead_of_dir(self):
         """Test validation when path is a file, not a directory."""
         with tempfile.NamedTemporaryFile() as tmpfile:
@@ -313,6 +346,34 @@ class TestRunPreflight:
                 assert report.all_passed is True
                 assert report.cost_estimate is not None
                 assert len(report.validations) == 4  # config, api key, data dir, output dir
+
+    def test_task_limit_caps_cost_estimate_but_not_data_validation(self):
+        """Validate all files while estimating only the tasks scheduled this run."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for task_index in range(3):
+                task_file = Path(tmpdir) / f"task{task_index}.json"
+                task_file.write_text(json.dumps({
+                    "train": [{"input": [[1]], "output": [[2]]}],
+                    "test": [{"input": [[3]], "output": [[4]]}]
+                }))
+
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+                report = run_preflight(
+                    config_name="gpt-4o-2024-11-20",
+                    data_dir=tmpdir,
+                    output_dir=os.path.join(tmpdir, "output"),
+                    num_attempts=2,
+                    max_tasks_per_run=2,
+                )
+
+        assert report.all_passed is True
+        assert report.cost_estimate is not None
+        assert report.cost_estimate.num_tasks == 2
+        assert report.cost_estimate.total_attempts == 4
+        assert any(
+            "Found 3 valid task files" in validation.message
+            for validation in report.validations
+        )
 
     def test_preflight_with_invalid_config(self):
         """Test preflight with an invalid config name."""
