@@ -90,6 +90,7 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
       output: 15.00            # USD per 1M output tokens
   ```
   - Standard fields: `name`, `model_name`, `provider`, `pricing` (`input`/`output` per 1M tokens, `date` for traceability).
+  - OpenAI API keys: configs with `provider: openai` use `OPENAI_API_KEY` when `api_key_env` is omitted. For an OpenAI-compatible endpoint that requires a different key, set `api_key_env` to that environment variable (typically alongside `base_url`). When `api_key_env` is set, that key is required and does not fall back to `OPENAI_API_KEY`.
   - Provider kwargs: any extra keys become `kwargs` and are passed directly to the SDK (e.g., `temperature`, `max_output_tokens`, `stream`, etc.).
 - Rate limits live in `provider_config.yml` (`rate`, `period` per provider).
 - Environment: set provider keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `HUGGING_FACE_API_KEY`). Copy `.env.example` to `.env` and fill in.
