@@ -59,13 +59,24 @@ def mock_model_config(adapter_class):
     # Handle potential variations if needed (e.g., fireworks vs fireworks-ai)
     # For now, simple lowercase name works for openai, grok, deepseek, fireworks
 
+    api_key_envs = {
+        "openai": "OPENAI_API_KEY",
+        "grok": "XAI_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "fireworks": "FIREWORKS_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "dashscope": "DASHSCOPE_API_KEY",
+        "mulerouter": "MULEROUTER_API_KEY",
+        "xai": "XAI_API_KEY",
+    }
+
     return ModelConfig(
         name=config_name,
         model_name=model_name,
         provider=provider_name, 
         pricing=ModelPricing(date="2024-01-01", input=1.0, output=2.0), 
         api_type=APIType.CHAT_COMPLETIONS, # Assuming chat completions for simplicity
-        api_key_env="OPENAI_API_KEY" if provider_name == "openai" else None,
+        api_key_env=api_key_envs[provider_name],
         kwargs={"temperature": 0.5}
     )
 

@@ -60,9 +60,13 @@ class TestCustomBaseUrlSchema:
         assert "base_url" not in config.kwargs
         assert "api_key_env" not in config.kwargs
 
-    def test_openai_config_requires_api_key_env(self):
+    def test_authenticated_config_requires_api_key_env(self):
         with pytest.raises(ValueError, match="api_key_env is required"):
             _make_config()
+
+    def test_random_config_does_not_require_api_key_env(self):
+        config = _make_config(provider="random")
+        assert config.api_key_env is None
 
 
 class TestCustomBaseUrlClientInit:

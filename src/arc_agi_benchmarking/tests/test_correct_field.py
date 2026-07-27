@@ -104,6 +104,7 @@ def mock_model_config():
         name="test_config",
         model_name="test-model",
         provider="test-provider",
+        api_key_env="TEST_API_KEY",
         pricing=ModelPricing(date="2024-01-01", input=1.0, output=2.0),
         kwargs={}
     )

@@ -37,10 +37,9 @@ This iterative approach will help you solve the puzzle more accurately.
     def init_client(self):
         """
         Initialize the Claude Agent SDK.
-        The SDK uses ANTHROPIC_API_KEY from environment.
+        The configured key is passed to the SDK as ANTHROPIC_API_KEY.
         """
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
+        self._api_key = self.get_api_key()
 
         # Import here to avoid import errors if SDK not installed
         try:
@@ -106,6 +105,7 @@ This iterative approach will help you solve the puzzle more accurately.
         # - No file writes, no web access, no bash - safe for benchmarking
         options = self._ClaudeAgentOptions(
             model=self.model_config.model_name,
+            env={"ANTHROPIC_API_KEY": self._api_key},
             allowed_tools=[
                 "TodoWrite",  # In-memory scratchpad
                 "Write", "Read", "Edit",  # File-based scratchpad for a /tmp/* entry per task

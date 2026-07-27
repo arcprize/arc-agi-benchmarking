@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -35,11 +34,7 @@ class TogetherAdapter(ProviderAdapter):
     """Adapter boundary for the official Together SDK."""
 
     def init_client(self):
-        api_key = os.environ.get("TOGETHER_API_KEY")
-        if not api_key:
-            raise ValueError("TOGETHER_API_KEY not found in environment variables")
-
-        return Together(api_key=api_key)
+        return Together(api_key=self.get_api_key())
 
     def _call_together_model(self, prompt: str) -> Any:
         api_kwargs = _filter_api_kwargs(self.model_config.kwargs)

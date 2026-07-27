@@ -18,7 +18,6 @@ from arc_agi_benchmarking.utils.preflight import (
     ValidationResult,
     CostEstimate,
     PreflightReport,
-    PROVIDER_API_KEYS,
 )
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits
@@ -61,10 +60,7 @@ class TestValidateApiKey:
     def test_known_provider_without_key(self):
         """Test that a known provider without an API key fails."""
         with patch.dict(os.environ, {}, clear=True):
-            # Clear any existing DEEPSEEK_API_KEY
-            if "DEEPSEEK_API_KEY" in os.environ:
-                del os.environ["DEEPSEEK_API_KEY"]
-            result = validate_api_key("deepseek")
+            result = validate_api_key("deepseek", "DEEPSEEK_API_KEY")
             assert result.passed is False
             assert "not found" in result.message.lower()
 
@@ -99,41 +95,35 @@ class TestValidateApiKey:
         assert result.passed is True
         assert "no api key required" in result.message.lower()
 
-    def test_unknown_provider(self):
-        """Test that an unknown provider returns failure."""
-        result = validate_api_key("unknown_provider_xyz")
-        assert result.passed is False
-        assert "unknown provider" in result.message.lower()
-
     def test_codex_with_either_key(self):
         """Test that codex accepts either OPENAI_API_KEY or CODEX_API_KEY."""
         # Test with OPENAI_API_KEY
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}, clear=True):
-            result = validate_api_key("codex")
+            result = validate_api_key("codex", "OPENAI_API_KEY")
             assert result.passed is True
 
         # Test with CODEX_API_KEY
         with patch.dict(os.environ, {"CODEX_API_KEY": "codex-test12345678"}, clear=True):
-            result = validate_api_key("codex")
+            result = validate_api_key("codex", "CODEX_API_KEY")
             assert result.passed is True
 
     def test_together_provider_with_key(self):
         """Test that Together accepts TOGETHER_API_KEY."""
         with patch.dict(os.environ, {"TOGETHER_API_KEY": "tog-test12345678"}, clear=True):
-            result = validate_api_key("together")
+            result = validate_api_key("together", "TOGETHER_API_KEY")
             assert result.passed is True
             assert "TOGETHER_API_KEY" in result.message
 
     def test_together_provider_without_key(self):
         """Test that Together fails clearly without TOGETHER_API_KEY."""
         with patch.dict(os.environ, {}, clear=True):
-            result = validate_api_key("together")
+            result = validate_api_key("together", "TOGETHER_API_KEY")
             assert result.passed is False
             assert "TOGETHER_API_KEY" in result.details
 
-    def test_together_provider_key_mapping_exists(self):
-        """Test that preflight knows which environment key Together uses."""
-        assert PROVIDER_API_KEYS["together"] == ["TOGETHER_API_KEY"]
+    def test_together_config_names_its_api_key(self):
+        config = read_models_config("deepseek-v4-pro-together")
+        assert config.api_key_env == "TOGETHER_API_KEY"
 
 
 class TestTogetherConfigIntegration:
@@ -257,6 +247,7 @@ class TestEstimateCost:
             name="test-model",
             model_name="test-model",
             provider="test",
+            api_key_env="TEST_API_KEY",
             pricing=ModelPricing(date="2024-01-01", input=1.0, output=2.0)
         )
 
@@ -283,6 +274,7 @@ class TestEstimateCost:
             name="test-model",
             model_name="test-model",
             provider="test",
+            api_key_env="TEST_API_KEY",
             pricing=ModelPricing(date="2024-01-01", input=10.0, output=30.0)
         )
 
@@ -367,20 +359,3 @@ class TestPreflightReport:
         assert "✓" in report_str  # Passed check
         assert "✗" in report_str  # Failed check
         assert "FAILED" in report_str  # Overall status
-
-
-class TestProviderApiKeyMapping:
-    """Tests for PROVIDER_API_KEYS mapping."""
-
-    def test_all_major_providers_covered(self):
-        """Test that all major providers are in the mapping."""
-        expected_providers = [
-            "openai", "anthropic", "gemini", "deepseek",
-            "fireworks", "xai", "groq", "openrouter", "random"
-        ]
-        for provider in expected_providers:
-            assert provider in PROVIDER_API_KEYS, f"Provider {provider} not in PROVIDER_API_KEYS"
-
-    def test_random_provider_has_no_keys(self):
-        """Test that random provider has empty key list."""
-        assert PROVIDER_API_KEYS["random"] == []
