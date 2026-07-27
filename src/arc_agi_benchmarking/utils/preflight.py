@@ -9,31 +9,13 @@ import os
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 from arc_agi_benchmarking.utils.task_utils import read_models_config
 from arc_agi_benchmarking.schemas import ModelConfig
 
 logger = logging.getLogger(__name__)
-
-# Provider to environment variable mapping
-PROVIDER_API_KEYS: Dict[str, List[str]] = {
-    "openai": ["OPENAI_API_KEY"],
-    "anthropic": ["ANTHROPIC_API_KEY"],
-    "claude_agent_sdk": ["ANTHROPIC_API_KEY"],
-    "gemini": ["GOOGLE_API_KEY"],
-    "google": ["GOOGLE_API_KEY"],
-    "deepseek": ["DEEPSEEK_API_KEY"],
-    "fireworks": ["FIREWORKS_API_KEY"],
-    "xai": ["XAI_API_KEY"],
-    "grok": ["XAI_API_KEY"],
-    "groq": ["GROQ_API_KEY"],
-    "openrouter": ["OPENROUTER_API_KEY"],
-    "together": ["TOGETHER_API_KEY"],
-    "codex": ["OPENAI_API_KEY", "CODEX_API_KEY"],  # Either works
-    "random": [],  # No API key needed
-}
 
 # Average tokens per ARC task (empirically estimated)
 # This is a rough estimate based on typical task sizes
@@ -140,39 +122,37 @@ def validate_config_exists(config_name: str) -> ValidationResult:
         )
 
 
-def validate_api_key(provider: str) -> ValidationResult:
-    """Check if the required API key exists for the provider."""
-    if provider not in PROVIDER_API_KEYS:
-        return ValidationResult(
-            passed=False,
-            message=f"Unknown provider '{provider}'",
-            details=f"Known providers: {', '.join(PROVIDER_API_KEYS.keys())}"
-        )
-
-    required_keys = PROVIDER_API_KEYS[provider]
-
-    if not required_keys:
+def validate_api_key(
+    provider: str,
+    api_key_env: Optional[str] = None,
+) -> ValidationResult:
+    """Check the API key named by the model configuration."""
+    if provider == "random":
         return ValidationResult(
             passed=True,
-            message=f"No API key required for '{provider}'"
+            message="No API key required for 'random'"
         )
 
-    # Check if any of the valid keys exist
-    for key_name in required_keys:
-        if os.environ.get(key_name):
-            # Mask the key for security
-            key_value = os.environ.get(key_name, "")
-            masked = key_value[:4] + "..." + key_value[-4:] if len(key_value) > 8 else "***"
-            return ValidationResult(
-                passed=True,
-                message=f"API key '{key_name}' found",
-                details=f"Value: {masked}"
-            )
+    if not api_key_env:
+        return ValidationResult(
+            passed=False,
+            message=f"API key environment variable not configured for '{provider}'",
+            details="Set api_key_env in the model config"
+        )
+
+    if os.environ.get(api_key_env):
+        key_value = os.environ.get(api_key_env, "")
+        masked = key_value[:4] + "..." + key_value[-4:] if len(key_value) > 8 else "***"
+        return ValidationResult(
+            passed=True,
+            message=f"API key '{api_key_env}' found",
+            details=f"Value: {masked}"
+        )
 
     return ValidationResult(
         passed=False,
         message=f"API key not found for '{provider}'",
-        details=f"Set one of: {', '.join(required_keys)}"
+        details=f"Set: {api_key_env}"
     )
 
 
@@ -345,7 +325,10 @@ def run_preflight(
 
     # 2. Validate API key (only if config was found)
     if model_config:
-        api_result = validate_api_key(model_config.provider)
+        api_result = validate_api_key(
+            model_config.provider,
+            model_config.api_key_env,
+        )
         validations.append(api_result)
     else:
         validations.append(ValidationResult(

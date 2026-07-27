@@ -15,9 +15,24 @@ def mock_model_config():
         name="test-claude-model",
         model_name="claude-3-7-sonnet-20250219",
         provider="anthropic",
+        api_key_env="ANTHROPIC_API_KEY",
         pricing=ModelPricing(date="2025-03-12", input=3.0, output=15.0),
         kwargs={"max_tokens": 8192}
     )
+
+
+def test_init_client_uses_configured_api_key_env(mock_model_config, monkeypatch):
+    adapter = AnthropicAdapter.__new__(AnthropicAdapter)
+    adapter.model_config = mock_model_config.model_copy(
+        update={"api_key_env": "CUSTOM_ANTHROPIC_KEY"}
+    )
+    monkeypatch.setenv("CUSTOM_ANTHROPIC_KEY", "custom-anthropic-secret")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    with patch("arc_agi_benchmarking.adapters.anthropic.anthropic.Anthropic") as client:
+        adapter.init_client()
+
+    client.assert_called_once_with(api_key="custom-anthropic-secret")
 
 
 @pytest.fixture

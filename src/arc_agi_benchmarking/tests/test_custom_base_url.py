@@ -60,9 +60,12 @@ class TestCustomBaseUrlSchema:
         assert "base_url" not in config.kwargs
         assert "api_key_env" not in config.kwargs
 
-    def test_fields_default_to_none(self):
-        config = _make_config()
-        assert config.base_url is None
+    def test_authenticated_config_requires_api_key_env(self):
+        with pytest.raises(ValueError, match="api_key_env is required"):
+            _make_config()
+
+    def test_random_config_does_not_require_api_key_env(self):
+        config = _make_config(provider="random")
         assert config.api_key_env is None
 
 
@@ -81,10 +84,13 @@ class TestCustomBaseUrlClientInit:
         assert call_args.kwargs["base_url"] == "https://inference.baseten.co/v1"
         assert call_args.kwargs["api_key"] == "baseten-secret"
 
-    def test_defaults_preserve_standard_openai_behavior(self, monkeypatch):
+    def test_standard_openai_key_must_be_explicit(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
         monkeypatch.delenv("BASETEN_API_KEY", raising=False)
-        config = _make_config(provider="openai")  # no base_url / api_key_env
+        config = _make_config(
+            provider="openai",
+            api_key_env="OPENAI_API_KEY",
+        )
 
         call_args = _init_client_with_config(config)
 

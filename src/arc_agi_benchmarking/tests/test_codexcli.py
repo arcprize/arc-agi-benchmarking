@@ -27,6 +27,7 @@ def mock_model_config(tmp_path):
         name="test-codexcli-model",
         model_name="codex-mini-latest",
         provider="codexcli",
+        api_key_env="OPENAI_API_KEY",
         pricing=ModelPricing(date="2025-05-16", input=2.0, output=4.0),
         kwargs={"scratchpad_root": str(tmp_path / "scratchpad")},
     )

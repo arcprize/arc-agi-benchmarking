@@ -3,7 +3,6 @@ from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice,
 import anthropic
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
-import os
 import json
 import uuid
 import time
@@ -21,11 +20,8 @@ class AnthropicAdapter(ProviderAdapter):
         """
         Initialize the Anthropic model
         """
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
-
         client = anthropic.Anthropic(
-            api_key=os.environ.get("ANTHROPIC_API_KEY"),
+            api_key=self.get_api_key(),
         )
 
         return client
