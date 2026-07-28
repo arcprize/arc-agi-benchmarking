@@ -140,6 +140,14 @@ async def test_max_tasks_per_run_limits_sorted_unsubmitted_tasks(tmp_path):
             "submission_exists",
             side_effect=lambda _directory, task_id: task_id == "task-a",
         ),
+        patch.object(
+            run_all,
+            "submission_is_complete",
+            side_effect=lambda _directory, task_id, _pairs, _attempts: (
+                task_id == "task-a"
+            ),
+        ),
+        patch.object(run_all, "get_task_test_pair_count", return_value=1),
         patch.object(run_all, "run_single_test_wrapper", run_wrapper),
     ):
         exit_code = await run_all.main(

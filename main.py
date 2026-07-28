@@ -189,9 +189,9 @@ class ARCTester:
             self.provider: The initialized provider adapter.
 
         Returns:
-            A list representing the submission structure if successful and saving is enabled,
-            or None if no valid predictions were made or saving is disabled but run completes.
-            Returns None immediately if submission exists and overwrite is False.
+            A list representing the submission structure. Existing non-null attempts are
+            preserved unless overwrite is enabled. Returns None immediately if an existing
+            submission already contains every expected non-null attempt.
         """
 
         logger.info(f"Running task {task_id} with config {self.config}")
@@ -202,22 +202,39 @@ class ARCTester:
 
         logger.info(f"Using model_config: {test_id} for task_id: {task_id}")
 
-        # Logic for overwrite. If save_submission_dir is provided, check if the submission already exists
+        train_pairs = utils.get_train_pairs_from_task(data_dir, task_id)
+        test_input_pairs = utils.get_test_input_from_task(data_dir, task_id)
+        test_pairs = utils.get_test_pairs_from_task(data_dir, task_id)
+
+        task_attempts = [dict() for _ in test_input_pairs]
         if (
             self.save_submission_dir
             and utils.submission_exists(self.save_submission_dir, task_id)
             and not self.overwrite_submission
         ):
-            logger.info(
-                f"Submission for task {task_id} using {test_id} already exists, skipping"
+            saved_submission = utils.load_submission(
+                self.save_submission_dir, task_id
             )
-            return
+            task_attempts = utils.normalize_submission_pairs(
+                saved_submission, len(test_input_pairs)
+            )
+            if utils.submission_attempts_complete(
+                task_attempts, self.num_attempts
+            ):
+                logger.info(
+                    f"Submission for task {task_id} using {test_id} is complete, skipping"
+                )
+                return
 
-        task_attempts = []
-
-        train_pairs = utils.get_train_pairs_from_task(data_dir, task_id)
-        test_input_pairs = utils.get_test_input_from_task(data_dir, task_id)
-        test_pairs = utils.get_test_pairs_from_task(data_dir, task_id)
+            missing_attempt_count = sum(
+                pair_attempts.get(f"attempt_{attempt_num}") is None
+                for pair_attempts in task_attempts
+                for attempt_num in range(1, self.num_attempts + 1)
+            )
+            logger.info(
+                f"Submission for task {task_id} using {test_id} has "
+                f"{missing_attempt_count} null or missing attempt(s); retrying them"
+            )
 
         # Go through each test pair to get a prediction. 96% of challenges have 1 pair.
         for t, pair_input_obj in enumerate(test_input_pairs):
@@ -226,11 +243,17 @@ class ARCTester:
                 f"Starting task {task_id}, ModelConfig: {test_id}, Test Pair Index: {pair_index + 1}/{len(test_input_pairs)}"
             )
 
-            pair_submission_attempts = {}
+            pair_submission_attempts = task_attempts[pair_index]
 
             # Run through each prediction attempt
             for attempt_num in range(1, self.num_attempts + 1):
                 attempt_key = f"attempt_{attempt_num}"
+                if pair_submission_attempts.get(attempt_key) is not None:
+                    logger.debug(
+                        f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, "
+                        f"Attempt #{attempt_num} already has a response; preserving it"
+                    )
+                    continue
                 pair_submission_attempts[attempt_key] = None
 
                 for retry_num in range(self.retry_attempts):
@@ -276,28 +299,26 @@ class ARCTester:
                             f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, All {self.retry_attempts} retries failed for attempt #{attempt_num}"
                         )
 
-            # Only append non-None attempts for this pair
-            if any(v is not None for v in pair_submission_attempts.values()):
-                task_attempts.append(pair_submission_attempts)
-
-        if task_attempts:
-            if self.print_submission:
-                # Log the submission content; use json.dumps for potentially large structures
-                logger.info(
-                    f"Final submission for task {task_id}, ModelConfig {test_id}:\n{json.dumps(task_attempts, indent=4)}"
-                )
-
-            if self.save_submission_dir:
-                utils.save_submission(self.save_submission_dir, task_id, task_attempts)
-                logger.info(
-                    f"Submission for task {task_id}, ModelConfig {test_id} saved to {self.save_submission_dir}"
-                )
-        else:
-            logger.warning(
-                f"No valid predictions for task {task_id}, ModelConfig {test_id} after all attempts. Skipping submission."
+        if self.print_submission:
+            # Log the submission content; use json.dumps for potentially large structures
+            logger.info(
+                f"Final submission for task {task_id}, ModelConfig {test_id}:\n{json.dumps(task_attempts, indent=4)}"
             )
 
-        return task_attempts if task_attempts else None
+        if self.save_submission_dir:
+            # Save null slots too so scoring can count them as zero and a later run
+            # can identify exactly which attempts still need a response.
+            utils.save_submission(self.save_submission_dir, task_id, task_attempts)
+            logger.info(
+                f"Submission for task {task_id}, ModelConfig {test_id} saved to {self.save_submission_dir}"
+            )
+
+        if not utils.submission_attempts_complete(task_attempts, self.num_attempts):
+            logger.warning(
+                f"Task {task_id}, ModelConfig {test_id} still has null attempts after all retries."
+            )
+
+        return task_attempts
 
 
 def main_cli(cli_args: Optional[List[str]] = None):

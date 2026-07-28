@@ -21,7 +21,10 @@ if project_root not in sys.path:
 
 from main import ARCTester
 from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits, get_provider_timeout_config
-from arc_agi_benchmarking.utils.submission_exists import submission_exists
+from arc_agi_benchmarking.utils.submission_exists import (
+    submission_exists,
+    submission_is_complete,
+)
 from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
 from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
@@ -112,6 +115,14 @@ PROVIDER_CONCURRENCY_LIMITERS: Dict[str, ProviderConcurrencyLimiter] = {}
 PROVIDER_CIRCUIT_BREAKERS: Dict[str, CircuitBreaker] = {}
 PROVIDER_TIMEOUT_CONFIGS: Dict[str, Dict] = {}
 MODEL_CONFIG_CACHE: Dict[str, Any] = {}
+
+
+def get_task_test_pair_count(data_dir: str, task_id: str) -> int:
+    task_path = os.path.join(data_dir, f"{task_id}.json")
+    with open(task_path, "r") as f:
+        task_data = json.load(f)
+    return len(task_data.get("test", []))
+
 
 def get_model_config(config_name: str):
     if config_name not in MODEL_CONFIG_CACHE:
@@ -451,6 +462,12 @@ async def main(task_list_file: Optional[str],
             task_id
             for task_id in task_ids
             if not submission_exists(save_submission_dir, task_id)
+            or not submission_is_complete(
+                save_submission_dir,
+                task_id,
+                get_task_test_pair_count(data_dir, task_id),
+                num_attempts,
+            )
         ]
         skipped_existing_submissions = len(task_ids) - len(tasks_to_run)
         if skipped_existing_submissions > 0:
