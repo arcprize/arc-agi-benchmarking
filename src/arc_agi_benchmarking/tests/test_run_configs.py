@@ -115,7 +115,7 @@ def test_rate_limit_divisor_must_be_positive():
 
 
 @pytest.mark.asyncio
-async def test_max_tasks_per_run_limits_sorted_pending_tasks(tmp_path):
+async def test_max_tasks_per_run_limits_sorted_unsubmitted_tasks(tmp_path):
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     for task_id in ("task-d", "task-b", "task-a", "task-c"):
@@ -158,6 +158,44 @@ async def test_max_tasks_per_run_limits_sorted_pending_tasks(tmp_path):
     scheduled_task_ids = [call.args[1] for call in run_wrapper.await_args_list]
     assert exit_code == 0
     assert scheduled_task_ids == ["task-b", "task-c"]
+
+
+@pytest.mark.asyncio
+async def test_task_list_deduplicates_ids_before_scheduling(tmp_path):
+    task_list = tmp_path / "tasks.txt"
+    task_list.write_text("task-b\ntask-a\ntask-b\ntask-c\ntask-a\n")
+    model_config = SimpleNamespace(
+        provider="dedupe-provider",
+        name="dedupe-config",
+        kwargs={},
+    )
+    run_wrapper = AsyncMock(return_value=True)
+
+    with (
+        patch.object(run_all, "get_model_config", return_value=model_config),
+        patch.object(
+            run_all,
+            "read_provider_rate_limits",
+            return_value={"dedupe-provider": {"rate": 100, "period": 60}},
+        ),
+        patch.object(run_all, "submission_exists", return_value=False),
+        patch.object(run_all, "run_single_test_wrapper", run_wrapper),
+    ):
+        exit_code = await run_all.main(
+            task_list_file=str(task_list),
+            config_to_test="dedupe-config",
+            data_dir=str(tmp_path / "data"),
+            save_submission_dir=str(tmp_path / "submissions"),
+            overwrite_submission=False,
+            print_submission=False,
+            num_attempts=1,
+            retry_attempts=1,
+            logs_base_dir=tmp_path / "logs",
+        )
+
+    scheduled_task_ids = [call.args[1] for call in run_wrapper.await_args_list]
+    assert exit_code == 0
+    assert scheduled_task_ids == ["task-b", "task-a", "task-c"]
 
 
 def test_resolve_config_runs_groups_providers_and_isolates_paths():

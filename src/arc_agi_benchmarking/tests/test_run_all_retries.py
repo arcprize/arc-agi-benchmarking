@@ -39,8 +39,7 @@ class APICallSimulator:
             logging.info(f"SIMULATOR: Simulating failure with {self.exception_to_raise.__name__}")
             raise self.exception_to_raise(f"Simulated API error on attempt {self.call_count}")
         logging.info("SIMULATOR: Simulating success")
-        # generate_task_solution doesn't return a value, it just completes or raises.
-        return None
+        return [{"attempt_1": {"answer": []}}]
 
 
 @pytest.mark.asyncio
@@ -235,3 +234,36 @@ async def test_non_retryable_exception(caplog):
             tenacity_retry_logs = [rec for rec in caplog.records if 
                                    rec.levelname == "WARNING" and "Retrying" in rec.message and rec.name == "cli.run_all"]
             assert len(tenacity_retry_logs) == 0, f"Expected 0 tenacity retry log(s), found {len(tenacity_retry_logs)}. Logs: {caplog.text}" 
+
+
+@pytest.mark.asyncio
+async def test_missing_submission_is_failure(tmp_path):
+    with (
+        patch(
+            "cli.run_all.EFFECTIVE_RETRYABLE_EXCEPTIONS",
+            (_TestRetryableExceptionInTestScope,),
+        ),
+        patch("cli.run_all.ARCTester") as mock_arc_tester_class,
+        patch("cli.run_all.submission_exists", return_value=False),
+    ):
+        mock_arc_tester_class.return_value.generate_task_solution.return_value = None
+
+        result = await run_single_test_wrapper(
+            "test_config_missing_submission",
+            "test_task_004",
+            AsyncRequestRateLimiter(rate=1000, capacity=1000),
+            circuit_breaker=CircuitBreaker(
+                "test_provider", failure_threshold=10
+            ),
+            task_timeout_seconds=300.0,
+            data_dir=TEST_DATA_DIR,
+            save_submission_dir=str(tmp_path / "submissions"),
+            overwrite_submission=True,
+            print_submission=False,
+            num_attempts=1,
+            retry_attempts=1,
+            logs_base_dir=tmp_path / "logs",
+        )
+
+    assert result is False
+    mock_arc_tester_class.return_value.generate_task_solution.assert_called_once()
