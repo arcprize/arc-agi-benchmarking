@@ -125,3 +125,8 @@ Required API keys (set in `.env`):
 - Adapters should handle their own error cases and return clean strings
 - Preflight validation runs automatically before benchmarks (skip with `--skip-preflight`)
 - Submissions are saved as JSON with `attempt_1`, `attempt_2` keys per task
+
+## Pull Requests
+
+- PR descriptions must explain the context and motivation for the change—what problem prompted it and why the chosen approach is appropriate—not only list the implementation changes.
+- If the relevant background cannot be inferred confidently from the issue, branch, or conversation, ask the user for clarification before creating the PR.
