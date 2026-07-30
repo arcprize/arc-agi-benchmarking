@@ -7,4 +7,4 @@ class GrokAdapter(OpenAIBaseAdapter):
 
     def init_client(self):
         """Initialize the OpenAI client configured for Grok API."""
-        return OpenAI(api_key=self.get_api_key(), base_url="https://api.x.ai/v1")
+        return OpenAI(api_key=self.get_api_key(), base_url="https://api.x.ai/v1", max_retries=0)

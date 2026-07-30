@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class CodexcliAdapter(ProviderAdapter):
+    request_limit_scope = "adapter_invocation"
     SCRATCHPAD_ROOT = "/tmp/arc_agi_scratchpad"
     SCRATCHPAD_INSTRUCTIONS = """
 IMPORTANT: You have access to a scratchpad directory at {scratchpad_dir} for your working notes.
@@ -59,7 +60,12 @@ Web search is disabled.
         scratchpad_dir = self._create_scratchpad_dir(task_id, pair_index, start_time)
         augmented_prompt = self.SCRATCHPAD_INSTRUCTIONS.format(scratchpad_dir=scratchpad_dir) + prompt
 
-        run_result = self._run_codex_exec(augmented_prompt, working_directory=scratchpad_dir)
+        run_result = self._request(
+            "codex.exec_session",
+            self._run_codex_exec,
+            augmented_prompt,
+            working_directory=scratchpad_dir,
+        )
 
         end_time = datetime.now(timezone.utc)
 

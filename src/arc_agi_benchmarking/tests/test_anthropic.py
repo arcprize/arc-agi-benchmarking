@@ -32,7 +32,10 @@ def test_init_client_uses_configured_api_key_env(mock_model_config, monkeypatch)
     with patch("arc_agi_benchmarking.adapters.anthropic.anthropic.Anthropic") as client:
         adapter.init_client()
 
-    client.assert_called_once_with(api_key="custom-anthropic-secret")
+    client.assert_called_once_with(
+        api_key="custom-anthropic-secret",
+        max_retries=0,
+    )
 
 
 @pytest.fixture
@@ -222,6 +225,8 @@ class TestAnthropicBatch:
           4. delete the batch afterwards.
         """
         adapter_instance.model_config.kwargs = {'batch': True, 'max_tokens': 8192}
+        adapter_instance.request_limiter = MagicMock()
+        adapter_instance.request_limiter.acquire.return_value = 0
 
         batches = _make_batch_handle(
             batch_id="msgbatch_abc",
@@ -253,6 +258,7 @@ class TestAnthropicBatch:
 
         # Returned message is the underlying Anthropic message object
         assert result is mock_anthropic_response
+        assert adapter_instance.request_limiter.acquire.call_count == 5
 
         # create called exactly once, with one Request, no betas kwarg
         batches.create.assert_called_once()

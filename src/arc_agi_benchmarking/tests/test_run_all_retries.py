@@ -7,10 +7,10 @@ from unittest.mock import patch, MagicMock
 # Assuming 'cli.run_all' can be imported. This might require PYTHONPATH adjustments
 # if 'src' isn't the root or if tests are run from a different context.
 # If 'src' is the project root for modules:
-# from cli.run_all import run_single_test_wrapper, AsyncRequestRateLimiter
+# from cli.run_all import run_single_test_wrapper, RequestRateLimiter
 # If 'src' is part of the import path (e.g. 'from src.cli.run_all ...'), adjust as needed.
 # For now, sticking to the simpler form based on common pytest setups from project root.
-from cli.run_all import run_single_test_wrapper, AsyncRequestRateLimiter
+from cli.run_all import run_single_test_wrapper, RequestRateLimiter
 from arc_agi_benchmarking.resilience import CircuitBreaker
 
 # This class was unused and causing a PytestCollectionWarning. Removing it.
@@ -71,7 +71,7 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
             )
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
-            limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
+            limiter = MagicMock()
             circuit_breaker = CircuitBreaker("test_provider", failure_threshold=10)
 
             # Execute the function under test
@@ -108,6 +108,9 @@ async def test_retry_and_eventual_success(caplog): # Only pytest fixtures like c
             # Assert the ARCTester class was instantiated for each attempt (initial + retries)
             assert MockARCTesterClass.call_count == expected_calls, \
                 f"Expected ARCTester class to be instantiated {expected_calls} times, but was {MockARCTesterClass.call_count}"
+            limiter_arg = MockARCTesterClass.call_args.kwargs["request_limiter"]
+            assert limiter_arg is limiter
+            limiter.acquire.assert_not_called()
 
     # Optional: Print logs for debugging if the test fails
     # print("\nCaptured Logs for test_retry_and_eventual_success:")
@@ -151,7 +154,7 @@ async def test_failure_after_all_retries(caplog):
             )
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
-            limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
+            limiter = RequestRateLimiter(rate=1000, capacity=1000)
             circuit_breaker = CircuitBreaker("test_provider", failure_threshold=10)
 
             result = await run_single_test_wrapper(
@@ -206,7 +209,7 @@ async def test_non_retryable_exception(caplog):
             )
             mock_arc_instance.generate_task_solution.side_effect = simulator.simulate_generate_task_solution
 
-            limiter = AsyncRequestRateLimiter(rate=1000, capacity=1000)
+            limiter = RequestRateLimiter(rate=1000, capacity=1000)
             circuit_breaker = CircuitBreaker("test_provider", failure_threshold=10)
 
             result = await run_single_test_wrapper(
@@ -251,7 +254,7 @@ async def test_missing_submission_is_failure(tmp_path):
         result = await run_single_test_wrapper(
             "test_config_missing_submission",
             "test_task_004",
-            AsyncRequestRateLimiter(rate=1000, capacity=1000),
+            RequestRateLimiter(rate=1000, capacity=1000),
             circuit_breaker=CircuitBreaker(
                 "test_provider", failure_threshold=10
             ),

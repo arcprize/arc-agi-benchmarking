@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClaudeagentsdkAdapter(ProviderAdapter):
+    request_limit_scope = "adapter_invocation"
     # Scratchpad directory for agentic reasoning
     SCRATCHPAD_DIR = "/tmp/arc_agi_scratchpad"
 
@@ -72,7 +73,12 @@ This iterative approach will help you solve the puzzle more accurately.
 
         The prompt is augmented with instructions to use the scratchpad.
         """
-        return asyncio.run(self._make_prediction_async(prompt, task_id, test_id, pair_index))
+        return self._request(
+            "agent.query_session",
+            lambda: asyncio.run(
+                self._make_prediction_async(prompt, task_id, test_id, pair_index)
+            ),
+        )
 
     async def _make_prediction_async(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
         """

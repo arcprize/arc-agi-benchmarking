@@ -102,7 +102,9 @@ class HuggingFaceFireworksAdapter(ProviderAdapter):
         return attempt
 
     def chat_completion(self, messages: str) -> str:
-        return self.client.chat.completions.create(
+        return self._request(
+            "chat.completions.create",
+            self.client.chat.completions.create,
             model=self.model_config.model_name,
             messages=messages,
             **self.model_config.kwargs

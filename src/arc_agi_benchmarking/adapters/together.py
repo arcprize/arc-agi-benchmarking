@@ -34,7 +34,7 @@ class TogetherAdapter(ProviderAdapter):
     """Adapter boundary for the official Together SDK."""
 
     def init_client(self):
-        return Together(api_key=self.get_api_key())
+        return Together(api_key=self.get_api_key(), max_retries=0)
 
     def _call_together_model(self, prompt: str) -> Any:
         api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
@@ -42,7 +42,9 @@ class TogetherAdapter(ProviderAdapter):
             raise ValueError("TogetherAdapter streaming is not supported yet")
 
         messages = [{"role": "user", "content": prompt}]
-        return self.client.chat.completions.create(
+        return self._request(
+            "chat.completions.create",
+            self.client.chat.completions.create,
             model=self.model_config.model_name,
             messages=messages,
             **api_kwargs,

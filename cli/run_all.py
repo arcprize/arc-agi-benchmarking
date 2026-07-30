@@ -25,7 +25,7 @@ from arc_agi_benchmarking.utils.submission_exists import (
     submission_exists,
     submission_is_complete,
 )
-from arc_agi_benchmarking.utils.rate_limiter import AsyncRequestRateLimiter
+from arc_agi_benchmarking.utils.rate_limiter import RequestRateLimiter
 from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
@@ -110,7 +110,7 @@ DEFAULT_RETRY_ATTEMPTS = 2
 # DEFAULT_PRINT_LOGS = False # This is now controlled by the global log level
 
 # --- Globals for Orchestrator ---
-PROVIDER_RATE_LIMITERS: Dict[str, AsyncRequestRateLimiter] = {}
+PROVIDER_RATE_LIMITERS: Dict[str, RequestRateLimiter] = {}
 PROVIDER_CONCURRENCY_LIMITERS: Dict[str, ProviderConcurrencyLimiter] = {}
 PROVIDER_CIRCUIT_BREAKERS: Dict[str, CircuitBreaker] = {}
 PROVIDER_TIMEOUT_CONFIGS: Dict[str, Dict] = {}
@@ -166,7 +166,7 @@ def get_or_create_rate_limiter(
     all_provider_limits: Dict,
     model_config: Optional[Any] = None,
     rate_limit_divisor: int = 1,
-) -> AsyncRequestRateLimiter:
+) -> RequestRateLimiter:
     """
     Get or create a rate limiter, checking for model-level config first.
     
@@ -206,7 +206,11 @@ def get_or_create_rate_limiter(
                 calculated_rps = config_rate / config_period
                 actual_rate_for_limiter = calculated_rps
                 config_capacity = model_rate_limit.get('capacity')
-                actual_capacity_for_limiter = config_capacity if config_capacity else max(1.0, calculated_rps)
+                actual_capacity_for_limiter = (
+                    max(1.0, config_capacity / rate_limit_divisor)
+                    if config_capacity is not None
+                    else max(1.0, calculated_rps)
+                )
             logger.info(
                 f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}': "
                 f"configured={original_config_rate:g} req/{config_period:g}s, "
@@ -238,14 +242,19 @@ def get_or_create_rate_limiter(
             else:
                 calculated_rps = config_rate / config_period
                 actual_rate_for_limiter = calculated_rps
-                actual_capacity_for_limiter = max(1.0, calculated_rps)
+                config_capacity = limits.get('capacity')
+                actual_capacity_for_limiter = (
+                    max(1.0, config_capacity / rate_limit_divisor)
+                    if config_capacity is not None
+                    else max(1.0, calculated_rps)
+                )
             logger.info(
                 f"Initializing rate limiter for provider '{provider_name}': "
                 f"configured={original_config_rate:g} req/{config_period:g}s, "
                 f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
                 f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
             )
-        PROVIDER_RATE_LIMITERS[limiter_key] = AsyncRequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
+        PROVIDER_RATE_LIMITERS[limiter_key] = RequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
     return PROVIDER_RATE_LIMITERS[limiter_key]
 
 
@@ -272,7 +281,7 @@ def get_task_timeout(provider_name: str, all_provider_limits: Dict, max_task_tim
         return max_task_timeout
     return None
 
-async def run_single_test_wrapper(config_name: str, task_id: str, limiter: AsyncRequestRateLimiter,
+async def run_single_test_wrapper(config_name: str, task_id: str, limiter: RequestRateLimiter,
                                   circuit_breaker: CircuitBreaker,
                                   task_timeout_seconds: Optional[float],
                                   data_dir: str, save_submission_dir: str,
@@ -324,7 +333,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             overwrite_submission=overwrite_submission,
             print_submission=print_submission, # This ARCTester arg controls if it logs submission content
             num_attempts=num_attempts,
-            retry_attempts=retry_attempts # ARCTester's internal retries
+            retry_attempts=retry_attempts, # ARCTester's internal retries
+            request_limiter=limiter,
             # print_logs removed from ARCTester instantiation
         )
         logger.debug(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
@@ -364,20 +374,19 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Async
             )
 
     try:
-        async with limiter:
-            if concurrency_limiter is None:
-                await _execute_task()
-            else:
+        if concurrency_limiter is None:
+            await _execute_task()
+        else:
+            logger.info(
+                f"[Orchestrator] Waiting for global provider concurrency "
+                f"slot for {config_name} / {task_id}"
+            )
+            async with concurrency_limiter.slot():
                 logger.info(
-                    f"[Orchestrator] Waiting for global provider concurrency "
-                    f"slot for {config_name} / {task_id}"
+                    f"[Orchestrator] Global provider concurrency slot acquired "
+                    f"for {config_name} / {task_id}"
                 )
-                async with concurrency_limiter.slot():
-                    logger.info(
-                        f"[Orchestrator] Global provider concurrency slot acquired "
-                        f"for {config_name} / {task_id}"
-                    )
-                    await _execute_task()
+                await _execute_task()
 
         circuit_breaker.record_success()
         logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")

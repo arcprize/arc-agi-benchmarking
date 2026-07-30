@@ -150,7 +150,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             f"Calling OpenAI API with model: {self.model_config.model_name} and kwargs: {api_kwargs}"
         )
 
-        return self.client.chat.completions.create(
+        return self._request(
+            "chat.completions.create",
+            self.client.chat.completions.create,
             model=self.model_config.model_name, messages=messages, **api_kwargs
         )
 
@@ -168,7 +170,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
         try:
             # Create the stream with usage tracking
-            stream = self.client.chat.completions.create(
+            stream = self._request(
+                "chat.completions.create_stream",
+                self.client.chat.completions.create,
                 model=self.model_config.model_name,
                 messages=messages,
                 stream=True,
@@ -250,7 +254,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         """
         Delete a response from the OpenAI API
         """
-        self.client.responses.delete(response_id)
+        self._request("responses.delete", self.client.responses.delete, response_id)
 
     def _responses(self, messages: List[Dict[str, str]]) -> Any:
         """
@@ -262,7 +266,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         if "reasoning" in self.model_config.kwargs:
             api_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
 
-        resp = self.client.responses.create(
+        resp = self._request(
+            "responses.create",
+            self.client.responses.create,
             model=self.model_config.model_name, input=messages, **api_kwargs
         )
 
@@ -273,7 +279,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         ):
             while resp.status in {"queued", "in_progress"}:
                 sleep(10)
-                resp = self.client.responses.retrieve(resp.id)
+                resp = self._request(
+                    "responses.retrieve", self.client.responses.retrieve, resp.id
+                )
 
             # Delete the background response after we're done with it
             try:
@@ -301,7 +309,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
         try:
             # Create the stream
-            stream = self.client.responses.create(
+            stream = self._request(
+                "responses.create_stream",
+                self.client.responses.create,
                 model=self.model_config.model_name,
                 input=messages,
                 stream=True,

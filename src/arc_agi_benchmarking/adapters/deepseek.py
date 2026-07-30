@@ -7,4 +7,4 @@ class DeepseekAdapter(OpenAIBaseAdapter):
 
     def init_client(self):
         """Initialize the OpenAI client configured for Deepseek."""
-        return OpenAI(api_key=self.get_api_key(), base_url="https://api.deepseek.com")
+        return OpenAI(api_key=self.get_api_key(), base_url="https://api.deepseek.com", max_retries=0)

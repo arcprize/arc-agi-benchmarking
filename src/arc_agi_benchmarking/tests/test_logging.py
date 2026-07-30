@@ -14,7 +14,7 @@ if project_root not in sys.path:
 
 # Imports now possible after path adjustment
 from main import ARCTester
-from cli.run_all import main, run_single_test_wrapper, AsyncRequestRateLimiter, get_or_create_rate_limiter
+from cli.run_all import main, run_single_test_wrapper, RequestRateLimiter, get_or_create_rate_limiter
 from arc_agi_benchmarking.schemas import Attempt # Import Attempt schema
 
 # --- Test ARCTester Logging (main.py) ---

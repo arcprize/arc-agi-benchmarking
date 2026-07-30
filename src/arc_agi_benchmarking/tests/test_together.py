@@ -135,7 +135,7 @@ def test_together_adapter_initializes_with_api_key(monkeypatch):
     ) as mock_together:
         adapter = TogetherAdapter("test-together-model")
 
-    mock_together.assert_called_once_with(api_key="test-key")
+    mock_together.assert_called_once_with(api_key="test-key", max_retries=0)
     assert adapter.client is mock_client
     assert adapter.model_config.provider == "together"
 
