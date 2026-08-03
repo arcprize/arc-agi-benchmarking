@@ -11,5 +11,6 @@ class XAIAdapter(OpenAIBaseAdapter):
         return OpenAI(
             api_key=self.get_api_key(),
             base_url="https://api.x.ai/v1",
-            timeout=httpx.Timeout(3600, connect=30)
+            timeout=httpx.Timeout(3600, connect=30),
+            max_retries=0,
         )

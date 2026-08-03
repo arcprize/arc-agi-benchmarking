@@ -77,7 +77,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 
 ## Running models
 For runs beyond the Quickstart:
-- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, provider rate limiting, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; use `run_configs.py` for multiple configs.
+- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, best-effort outbound API-request pacing, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; use `run_configs.py` for multiple configs. Calls visible to the benchmark runner—including model, parsing, retry, and explicit background/batch control calls—consume rate-limit allowance; starting an ARC task does not. Configured rates are operational ballparks, not strict caps: SDK-managed retries, agent SDKs that hide internal model calls, and synchronous work that continues after a task timeout can produce additional provider traffic.
 - Multiple configs: use `uv run cli/run_configs.py`. It starts one `run_all.py` process per config concurrently, gives each process isolated submission/log directories, and prefixes console output with the config name:
   ```bash
   uv run cli/run_configs.py \

@@ -21,4 +21,4 @@ class DashScopeAdapter(OpenAIBaseAdapter):
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         )
 
-        return OpenAI(api_key=self.get_api_key(), base_url=base_url)
+        return OpenAI(api_key=self.get_api_key(), base_url=base_url, max_retries=0)

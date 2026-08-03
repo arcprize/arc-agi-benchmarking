@@ -64,4 +64,7 @@ def test_gemini_init_uses_configured_api_key_env(monkeypatch):
     with patch("arc_agi_benchmarking.adapters.gemini.genai.Client") as client:
         adapter.init_client()
 
-    client.assert_called_once_with(api_key="custom-gemini-secret")
+    client.assert_called_once()
+    call_kwargs = client.call_args.kwargs
+    assert call_kwargs["api_key"] == "custom-gemini-secret"
+    assert call_kwargs["http_options"].retry_options.attempts == 1

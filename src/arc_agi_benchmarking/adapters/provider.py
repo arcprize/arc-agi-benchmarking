@@ -2,12 +2,24 @@ import abc
 import os
 from typing import List, Dict, Tuple, Any, Optional
 import json
+import logging
 from datetime import datetime
+from typing import Callable, TypeVar
 from arc_agi_benchmarking.schemas import Attempt, ModelConfig
 from arc_agi_benchmarking.utils.task_utils import read_models_config
+from arc_agi_benchmarking.utils.rate_limiter import RequestRateLimiter
+
+logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 class ProviderAdapter(abc.ABC):
-    def __init__(self, config: str):
+    request_limit_scope = "api_request"
+
+    def __init__(
+        self,
+        config: str,
+        request_limiter: Optional[RequestRateLimiter] = None,
+    ):
         """
         Initialize the provider adapter with model configuration.
         
@@ -16,6 +28,7 @@ class ProviderAdapter(abc.ABC):
         """
         self.config = config
         self.model_config: ModelConfig = read_models_config(config)
+        self.request_limiter = request_limiter
         
         # Verify the provider matches the adapter
         adapter_provider = self.__class__.__name__.lower().replace('adapter', '')
@@ -24,6 +37,27 @@ class ProviderAdapter(abc.ABC):
         
         # Initialize the client
         self.client = self.init_client()
+
+        if request_limiter is not None and self.request_limit_scope != "api_request":
+            logger.warning(
+                "%s hides its internal HTTP traffic; rate limiting applies to each "
+                "adapter invocation, not every underlying API request.",
+                self.__class__.__name__,
+            )
+
+    def _request(self, operation: str, call: Callable[..., T], *args, **kwargs) -> T:
+        """Acquire allowance immediately before invoking an outbound SDK call."""
+        request_limiter = getattr(self, "request_limiter", None)
+        if request_limiter is not None:
+            waited = request_limiter.acquire()
+            if waited > 0:
+                logger.info(
+                    "Rate limiter waited %.2fs for %s request (%s)",
+                    waited,
+                    self.model_config.provider,
+                    operation,
+                )
+        return call(*args, **kwargs)
 
     def get_api_key(self) -> str:
         """Read the API key named by this model configuration."""

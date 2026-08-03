@@ -22,6 +22,7 @@ class AnthropicAdapter(ProviderAdapter):
         """
         client = anthropic.Anthropic(
             api_key=self.get_api_key(),
+            max_retries=0,
         )
 
         return client
@@ -145,14 +146,18 @@ class AnthropicAdapter(ProviderAdapter):
         betas = self.model_config.kwargs.get('betas')
         api_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k != 'betas'}
         if betas:
-            return self.client.beta.messages.create(
+            return self._request(
+                "beta.messages.create",
+                self.client.beta.messages.create,
                 model=self.model_config.model_name,
                 betas=betas,
                 messages=messages,
                 tools=tools,
                 **api_kwargs
             )
-        return self.client.messages.create(
+        return self._request(
+            "messages.create",
+            self.client.messages.create,
             model=self.model_config.model_name,
             messages=messages,
             tools=tools,
@@ -172,21 +177,27 @@ class AnthropicAdapter(ProviderAdapter):
 
         try:
             if betas:
-                with self.client.beta.messages.stream(
+                stream_context = self._request(
+                    "beta.messages.stream",
+                    self.client.beta.messages.stream,
                     model=self.model_config.model_name,
                     betas=betas,
                     messages=messages,
                     tools=tools,
                     **stream_kwargs
-                ) as stream:
+                )
+                with stream_context as stream:
                     final_message = stream.get_final_message()
             else:
-                with self.client.messages.stream(
+                stream_context = self._request(
+                    "messages.stream",
+                    self.client.messages.stream,
                     model=self.model_config.model_name,
                     messages=messages,
                     tools=tools,
                     **stream_kwargs
-                ) as stream:
+                )
+                with stream_context as stream:
                     final_message = stream.get_final_message()
 
             logger.debug(f"Streaming complete for message ID: {final_message.id}")
@@ -244,9 +255,14 @@ class AnthropicAdapter(ProviderAdapter):
         batches_api = self.client.beta.messages.batches if betas else self.client.messages.batches
 
         if betas:
-            batch = batches_api.create(requests=[request], betas=betas)
+            batch = self._request(
+                "messages.batches.create", batches_api.create,
+                requests=[request], betas=betas
+            )
         else:
-            batch = batches_api.create(requests=[request])
+            batch = self._request(
+                "messages.batches.create", batches_api.create, requests=[request]
+            )
 
         batch_id = batch.id
         logger.debug(f"Created Anthropic batch {batch_id} with custom_id={custom_id}")
@@ -256,7 +272,9 @@ class AnthropicAdapter(ProviderAdapter):
             # mode, which also loops until the response leaves queued/in_progress.
             while batch.processing_status != "ended":
                 time.sleep(_BATCH_POLL_INTERVAL_SECONDS)
-                batch = batches_api.retrieve(batch_id)
+                batch = self._request(
+                    "messages.batches.retrieve", batches_api.retrieve, batch_id
+                )
                 logger.debug(
                     f"Anthropic batch {batch_id} status={batch.processing_status} "
                     f"counts={batch.request_counts}"
@@ -264,7 +282,10 @@ class AnthropicAdapter(ProviderAdapter):
 
             # Stream results back; we only submitted one request so we expect one entry.
             matched = None
-            for result in batches_api.results(batch_id):
+            results = self._request(
+                "messages.batches.results", batches_api.results, batch_id
+            )
+            for result in results:
                 if result.custom_id == custom_id:
                     matched = result
                     break
@@ -294,7 +315,9 @@ class AnthropicAdapter(ProviderAdapter):
             # success or failure above. Failures here are logged but do not
             # override the original exception (if any).
             try:
-                batches_api.delete(batch_id)
+                self._request(
+                    "messages.batches.delete", batches_api.delete, batch_id
+                )
                 logger.debug(f"Deleted Anthropic batch {batch_id}")
             except Exception as delete_err:
                 logger.warning(f"Failed to delete Anthropic batch {batch_id}: {delete_err}")

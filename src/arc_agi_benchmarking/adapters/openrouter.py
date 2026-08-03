@@ -7,4 +7,4 @@ class OpenRouterAdapter(OpenAIBaseAdapter):
 
     def init_client(self):
         """Initialize the OpenAI client configured for OpenRouter API."""
-        return OpenAI(api_key=self.get_api_key(), base_url="https://openrouter.ai/api/v1")
+        return OpenAI(api_key=self.get_api_key(), base_url="https://openrouter.ai/api/v1", max_retries=0)

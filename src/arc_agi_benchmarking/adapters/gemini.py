@@ -20,7 +20,12 @@ class GeminiAdapter(ProviderAdapter):
         """Initialize the Gemini client."""
         self.generation_config_dict = self.model_config.kwargs
         
-        client = genai.Client(api_key=self.get_api_key())
+        client = genai.Client(
+            api_key=self.get_api_key(),
+            http_options=types.HttpOptions(
+                retry_options=types.HttpRetryOptions(attempts=1)
+            ),
+        )
         return client
 
     def make_prediction(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:
@@ -161,7 +166,9 @@ class GeminiAdapter(ProviderAdapter):
         config_params = self.generation_config_dict.copy()
 
         try:
-            response = self.client.models.generate_content(
+            response = self._request(
+                "models.generate_content",
+                self.client.models.generate_content,
                 model=self.model_config.model_name,
                 contents=contents_list,
                 config=types.GenerateContentConfig(**config_params)
@@ -203,7 +210,9 @@ class GeminiAdapter(ProviderAdapter):
 
         try:
             # Stream the content - we only care about the final result
-            stream = self.client.models.generate_content_stream(
+            stream = self._request(
+                "models.generate_content_stream",
+                self.client.models.generate_content_stream,
                 model=self.model_config.model_name,
                 contents=contents_list,
                 config=types.GenerateContentConfig(**config_params)
@@ -270,7 +279,9 @@ class GeminiAdapter(ProviderAdapter):
         }
 
         try:
-            response = self.client.models.generate_content(
+            response = self._request(
+                "models.generate_content.extract_json",
+                self.client.models.generate_content,
                 model=self.model_config.model_name,
                 contents=prompt, 
                 config=types.GenerateContentConfig(**extract_config_params) if extract_config_params else None

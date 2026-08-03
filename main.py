@@ -61,9 +61,11 @@ class ARCTester:
         print_submission: bool,
         num_attempts: int,
         retry_attempts: int,
+        request_limiter=None,
     ):
         self.config = config
         self.model_config = utils.read_models_config(config)
+        self.request_limiter = request_limiter
         self.provider = self.init_provider(self.model_config.provider)
         self.save_submission_dir = save_submission_dir
         self.overwrite_submission = overwrite_submission
@@ -76,7 +78,7 @@ class ARCTester:
             adapter_cls = PROVIDER_ADAPTERS[provider_name]
         except KeyError:
             raise ValueError(f"Unsupported provider: {provider_name}")
-        return adapter_cls(self.config)
+        return adapter_cls(self.config, request_limiter=self.request_limiter)
 
     def predict_task_output(
         self,

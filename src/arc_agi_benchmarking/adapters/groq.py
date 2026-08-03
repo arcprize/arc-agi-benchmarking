@@ -7,4 +7,4 @@ class GroqAdapter(OpenAIBaseAdapter):
 
     def init_client(self):
         """Initialize the OpenAI client configured for Groq."""
-        return OpenAI(api_key=self.get_api_key(), base_url="https://api.groq.com/openai/v1")
+        return OpenAI(api_key=self.get_api_key(), base_url="https://api.groq.com/openai/v1", max_retries=0)

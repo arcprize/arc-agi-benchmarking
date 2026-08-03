@@ -1,13 +1,13 @@
 # Provider-specific API rate limits
-# Used by the asyncio orchestrator (cli/run_all.py) to configure AsyncRequestRateLimiter.
-# 'rate' is the number of allowed requests per 'period' seconds.
+# Used by the benchmark runners to pace outbound provider API request attempts.
+# 'rate' is the average number of allowed requests per 'period' seconds.
 
 openai:
   rate: 20
   period: 60    # per 60 seconds
 
 anthropic:
-  rate: 20     # 400 requests
+  rate: 50     # 50 requests
   period: 60    # per 60 seconds
 
 # Provider key for Gemini models, should match 'provider' field in models.yml
