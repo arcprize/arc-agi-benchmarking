@@ -175,6 +175,7 @@ class AnthropicAdapter(ProviderAdapter):
         betas = self.model_config.kwargs.get('betas')
         stream_kwargs = {k: v for k, v in self.model_config.kwargs.items() if k not in ('stream', 'betas')}
 
+        stream_context = None
         try:
             if betas:
                 stream_context = self._request(
@@ -184,6 +185,7 @@ class AnthropicAdapter(ProviderAdapter):
                     betas=betas,
                     messages=messages,
                     tools=tools,
+                    _raw_log_deferred=True,
                     **stream_kwargs
                 )
                 with stream_context as stream:
@@ -195,6 +197,7 @@ class AnthropicAdapter(ProviderAdapter):
                     model=self.model_config.model_name,
                     messages=messages,
                     tools=tools,
+                    _raw_log_deferred=True,
                     **stream_kwargs
                 )
                 with stream_context as stream:
@@ -202,11 +205,13 @@ class AnthropicAdapter(ProviderAdapter):
 
             logger.debug(f"Streaming complete for message ID: {final_message.id}")
             logger.debug(f"Final message: {final_message}")
+            self._record_deferred_raw_api_success(stream_context, final_message)
             return final_message
 
         except Exception as e:
+            self._record_deferred_raw_api_failure(stream_context, e)
             logger.error(f"Error during Anthropic streaming: {e}")
-            logger.error(f"Error details: {e.response}")
+            logger.error(f"Error details: {getattr(e, 'response', None)}")
             raise
 
     def chat_completion_batch(self, messages, tools=[]):
@@ -282,10 +287,20 @@ class AnthropicAdapter(ProviderAdapter):
 
             # Stream results back; we only submitted one request so we expect one entry.
             matched = None
-            results = self._request(
-                "messages.batches.results", batches_api.results, batch_id
-            )
-            for result in results:
+            results = None
+            try:
+                results = self._request(
+                    "messages.batches.results",
+                    batches_api.results,
+                    batch_id,
+                    _raw_log_deferred=True,
+                )
+                result_entries = list(results)
+                self._record_deferred_raw_api_success(results, result_entries)
+            except Exception as result_error:
+                self._record_deferred_raw_api_failure(results, result_error)
+                raise
+            for result in result_entries:
                 if result.custom_id == custom_id:
                     matched = result
                     break

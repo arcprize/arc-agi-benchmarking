@@ -168,6 +168,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         api_kwargs = _filter_api_kwargs(self.model_config.kwargs)
         stream_kwargs = {k: v for k, v in api_kwargs.items() if k != "stream"}
 
+        stream = None
         try:
             # Create the stream with usage tracking
             stream = self._request(
@@ -177,6 +178,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 messages=messages,
                 stream=True,
                 stream_options={"include_usage": True},
+                _raw_log_deferred=True,
                 **stream_kwargs,
             )
 
@@ -228,7 +230,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 f"Streaming complete. Chunks received: {chunk_count}, Content length: {len(final_content)}"
             )
 
-            return ChatCompletion(
+            final_response = ChatCompletion(
                 id=response_id,
                 choices=[
                     OpenAIChoice(
@@ -245,8 +247,11 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 object="chat.completion",
                 usage=usage_data,
             )
+            self._record_deferred_raw_api_success(stream, final_response)
+            return final_response
 
         except Exception as e:
+            self._record_deferred_raw_api_failure(stream, e)
             logger.error(f"Error during streaming: {e}")
             raise
 
@@ -307,6 +312,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         if "reasoning" in self.model_config.kwargs:
             stream_kwargs["reasoning"] = self.model_config.kwargs["reasoning"]
 
+        stream = None
         try:
             # Create the stream
             stream = self._request(
@@ -315,6 +321,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 model=self.model_config.model_name,
                 input=messages,
                 stream=True,
+                _raw_log_deferred=True,
                 **stream_kwargs,
             )
 
@@ -363,15 +370,18 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 f"Streaming complete. Chunks received: {chunk_count}, Content length: {len(final_content)}"
             )
 
-            return _ResponsesResponse(
+            final_response = _ResponsesResponse(
                 model_name=self.model_config.model_name,
                 content=final_content,
                 usage_data=usage_data,
                 response_id=response_id,
                 finish_reason=finish_reason,
             )
+            self._record_deferred_raw_api_success(stream, final_response)
+            return final_response
 
         except Exception as e:
+            self._record_deferred_raw_api_failure(stream, e)
             logger.error(f"Error during streaming: {e}")
             raise
 

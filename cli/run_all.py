@@ -30,6 +30,7 @@ from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLi
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
 from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
+from arc_agi_benchmarking.utils.raw_api_logging import RawAPIRecorder
 from arc_agi_benchmarking.resilience import (
     CircuitBreaker,
     CircuitBreakerOpenError,
@@ -288,7 +289,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
-                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None) -> bool:
+                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None,
+                                  raw_api_recorder: Optional[RawAPIRecorder] = None) -> bool:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     try:
@@ -297,6 +299,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
         logger.warning(f"[Orchestrator] Circuit breaker OPEN for {config_name}, skipping {task_id}. Recovery in {e.recovery_time:.1f}s")
         return False
 
+    orchestrator_attempt = 0
+
     @retry(
         wait=wait_exponential(multiplier=1, min=4, max=60),
         stop=stop_after_attempt(4),
@@ -304,6 +308,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
         before_sleep=before_sleep_log(logger, logging.WARNING)
     )
     def _synchronous_task_execution_attempt_with_tenacity():
+        nonlocal orchestrator_attempt
+        orchestrator_attempt += 1
         logger.debug(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
 
         # Configure per-task JSONL file logging: <logs_base_dir>/<config>/<task_id>/openai.jsonl
@@ -335,6 +341,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
             num_attempts=num_attempts,
             retry_attempts=retry_attempts, # ARCTester's internal retries
             request_limiter=limiter,
+            raw_api_recorder=raw_api_recorder,
+            orchestrator_attempt=orchestrator_attempt,
             # print_logs removed from ARCTester instantiation
         )
         logger.debug(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
@@ -394,6 +402,13 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
 
     except TaskTimeoutError as e:
         circuit_breaker.record_failure(e)
+        if raw_api_recorder is not None:
+            raw_api_recorder.record_task_timeout(
+                task_id=task_id,
+                config=config_name,
+                elapsed=e.elapsed,
+                timeout=e.timeout,
+            )
         logger.error(f"[Orchestrator] Task {task_id} ({config_name}) timed out after {e.elapsed:.2f}s (limit: {e.timeout}s)")
         return False
 
@@ -416,7 +431,8 @@ async def main(task_list_file: Optional[str],
                resume: bool = True,
                rate_limit_divisor: int = 1,
                max_tasks_per_run: Optional[int] = None,
-               max_concurrency: Optional[int] = None) -> int:
+               max_concurrency: Optional[int] = None,
+               raw_api_recorder: Optional[RawAPIRecorder] = None) -> int:
     start_time = time.perf_counter()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
@@ -545,6 +561,7 @@ async def main(task_list_file: Optional[str],
                 num_attempts, retry_attempts,
                 logs_base_dir,
                 concurrency_limiter,
+                raw_api_recorder,
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
@@ -666,6 +683,15 @@ if __name__ == "__main__":
         help="Base directory for JSONL logs. Per-task logs go to <base>/<config>/<task_id>/openai.jsonl (default: logs)."
     )
     parser.add_argument(
+        "--raw-api-log-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional config/dataset directory for append-only raw API logs. "
+            "Per-task events are written as <dir>/<task_id>.jsonl."
+        ),
+    )
+    parser.add_argument(
         "--skip-preflight",
         action="store_true",
         help="Skip preflight validation checks (not recommended for production runs)."
@@ -767,6 +793,16 @@ if __name__ == "__main__":
         project_root = Path(__file__).resolve().parent.parent
         logs_base_dir = (project_root / logs_base_dir).resolve()
 
+    raw_api_recorder = (
+        RawAPIRecorder(args.raw_api_log_dir) if args.raw_api_log_dir else None
+    )
+    if raw_api_recorder is not None:
+        logger.info(
+            "Raw API logs enabled at %s (run_id=%s)",
+            raw_api_recorder.log_dir,
+            raw_api_recorder.run_id,
+        )
+
     # --- Preflight validation ---
     if not args.skip_preflight:
         logger.info("Running preflight validation...")
@@ -816,6 +852,7 @@ if __name__ == "__main__":
         rate_limit_divisor=args.rate_limit_divisor,
         max_tasks_per_run=args.max_tasks_per_run,
         max_concurrency=args.max_concurrency,
+        raw_api_recorder=raw_api_recorder,
     ))
     
     sys.exit(exit_code_from_main) 

@@ -28,6 +28,7 @@ class ConfigRun:
     submission_dir: Path
     logs_dir: Path
     command: tuple[str, ...]
+    raw_api_log_dir: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,15 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path("logs"),
         help="Root for isolated per-config logs (default: logs).",
+    )
+    parser.add_argument(
+        "--raw-api-log-root",
+        type=Path,
+        default=None,
+        help=(
+            "Enable append-only raw API logs under "
+            "<root>/<config>/<dataset>/<task_id>.jsonl."
+        ),
     )
     parser.add_argument(
         "--max-concurrency",
@@ -180,6 +190,7 @@ def _validate_launcher_args(
         "--save_submission_dir",
         "--submissions-root",
         "--rate-limit-divisor",
+        "--raw-api-log-dir",
     )
     conflicts = [
         option
@@ -224,6 +235,7 @@ def resolve_config_runs(
     )
     runs: list[ConfigRun] = []
     max_concurrency = getattr(args, "max_concurrency", None)
+    raw_api_log_root = getattr(args, "raw_api_log_root", None)
     concurrency_args = (
         ("--max-concurrency", str(max_concurrency))
         if max_concurrency is not None
@@ -236,9 +248,19 @@ def resolve_config_runs(
         for dataset in datasets:
             submission_dir = args.save_submission_root / config / dataset.name
             logs_dir = args.logs_base_dir / config / dataset.name
+            raw_api_log_dir = (
+                raw_api_log_root / config / dataset.name
+                if raw_api_log_root is not None
+                else None
+            )
             dataset_args = (
                 ("--data_dir", str(dataset.data_dir))
                 if dataset.data_dir is not None
+                else ()
+            )
+            raw_api_log_args = (
+                ("--raw-api-log-dir", str(raw_api_log_dir))
+                if raw_api_log_dir is not None
                 else ()
             )
             command = (
@@ -252,6 +274,7 @@ def resolve_config_runs(
                 str(logs_dir),
                 "--rate-limit-divisor",
                 str(divisor),
+                *raw_api_log_args,
                 *concurrency_args,
                 *forwarded_args,
                 *dataset_args,
@@ -265,6 +288,7 @@ def resolve_config_runs(
                     submission_dir=submission_dir,
                     logs_dir=logs_dir,
                     command=command,
+                    raw_api_log_dir=raw_api_log_dir,
                 )
             )
 

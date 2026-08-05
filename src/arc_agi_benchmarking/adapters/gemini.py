@@ -171,7 +171,7 @@ class GeminiAdapter(ProviderAdapter):
                 self.client.models.generate_content,
                 model=self.model_config.model_name,
                 contents=contents_list,
-                config=types.GenerateContentConfig(**config_params)
+                config=types.GenerateContentConfig(**config_params),
             )
             return response
         except Exception as e:
@@ -208,6 +208,7 @@ class GeminiAdapter(ProviderAdapter):
         # Prepare config for streaming, removing 'stream' to avoid duplication
         config_params = {k: v for k, v in self.generation_config_dict.items() if k != 'stream'}
 
+        stream = None
         try:
             # Stream the content - we only care about the final result
             stream = self._request(
@@ -215,7 +216,8 @@ class GeminiAdapter(ProviderAdapter):
                 self.client.models.generate_content_stream,
                 model=self.model_config.model_name,
                 contents=contents_list,
-                config=types.GenerateContentConfig(**config_params)
+                config=types.GenerateContentConfig(**config_params),
+                _raw_log_deferred=True,
             )
 
             # Iterate through all chunks to get to the final response
@@ -246,9 +248,15 @@ class GeminiAdapter(ProviderAdapter):
             logger.debug(f"Streaming complete for Gemini model: {self.model_config.model_name}. Total chunks: {chunk_count}")
 
             # Return a wrapper object with the accumulated text and metadata
-            return _StreamResponse(text=final_text, usage_metadata=usage_metadata)
+            final_response = _StreamResponse(
+                text=final_text,
+                usage_metadata=usage_metadata,
+            )
+            self._record_deferred_raw_api_success(stream, final_response)
+            return final_response
 
         except Exception as e:
+            self._record_deferred_raw_api_failure(stream, e)
             logger.error(f"Error in chat_completion_stream with google.genai: {e}")
             if hasattr(e, 'response') and e.response:
                  logger.error(f"API Error details: {e.response}")

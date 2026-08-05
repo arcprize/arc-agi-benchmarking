@@ -23,11 +23,13 @@ from dotenv import load_dotenv
 import arc_agi_benchmarking.utils as utils
 from arc_agi_benchmarking.utils.metrics import timeit, set_metrics_enabled
 from arc_agi_benchmarking.utils.logging_utils import setup_logging
+from arc_agi_benchmarking.utils.raw_api_logging import RawAPIRecorder
 from arc_agi_benchmarking.schemas import ARCPair, Attempt
 from arc_agi_benchmarking.prompts.prompt_manager import convert_task_pairs_to_prompt
 from typing import List, Optional
 import argparse
 import logging
+from contextlib import nullcontext
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +64,14 @@ class ARCTester:
         num_attempts: int,
         retry_attempts: int,
         request_limiter=None,
+        raw_api_recorder: Optional[RawAPIRecorder] = None,
+        orchestrator_attempt: int = 1,
     ):
         self.config = config
         self.model_config = utils.read_models_config(config)
         self.request_limiter = request_limiter
+        self.raw_api_recorder = raw_api_recorder
+        self.orchestrator_attempt = orchestrator_attempt
         self.provider = self.init_provider(self.model_config.provider)
         self.save_submission_dir = save_submission_dir
         self.overwrite_submission = overwrite_submission
@@ -78,7 +84,10 @@ class ARCTester:
             adapter_cls = PROVIDER_ADAPTERS[provider_name]
         except KeyError:
             raise ValueError(f"Unsupported provider: {provider_name}")
-        return adapter_cls(self.config, request_limiter=self.request_limiter)
+        adapter_kwargs = {"request_limiter": self.request_limiter}
+        if self.raw_api_recorder is not None:
+            adapter_kwargs["raw_api_recorder"] = self.raw_api_recorder
+        return adapter_cls(self.config, **adapter_kwargs)
 
     def predict_task_output(
         self,
@@ -264,13 +273,27 @@ class ARCTester:
                             f"    Task {task_id}, ModelConfig {test_id}, Pair {pair_index + 1}, Predicting attempt #{attempt_num}, retry #{retry_num + 1}"
                         )
                         # Now storing the full attempt object with task_id and test_id
-                        attempt_obj = self.get_task_prediction(
-                            training_pairs=train_pairs,
-                            test_input=pair_input_obj,
-                            task_id=task_id,
-                            test_id=test_id,
-                            pair_index=pair_index,
-                        )
+                        recorder = getattr(self, "raw_api_recorder", None)
+                        request_context = nullcontext()
+                        if recorder is not None:
+                            request_context = self.provider.request_context(
+                                config=self.config,
+                                provider=self.model_config.provider,
+                                model=self.model_config.model_name,
+                                task_id=task_id,
+                                pair_index=pair_index,
+                                attempt=attempt_num,
+                                retry=retry_num + 1,
+                                orchestrator_attempt=self.orchestrator_attempt,
+                            )
+                        with request_context:
+                            attempt_obj = self.get_task_prediction(
+                                training_pairs=train_pairs,
+                                test_input=pair_input_obj,
+                                task_id=task_id,
+                                test_id=test_id,
+                                pair_index=pair_index,
+                            )
 
                         if attempt_obj is not None:
                             logger.debug(
@@ -388,6 +411,15 @@ def main_cli(cli_args: Optional[List[str]] = None):
         action="store_true",
         help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)",
     )
+    parser.add_argument(
+        "--raw-api-log-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional config/dataset directory for append-only raw API logs. "
+            "Per-task events are written as <dir>/<task_id>.jsonl."
+        ),
+    )
     args = parser.parse_args(cli_args)
 
     # Set metrics enabled status based on CLI arg first
@@ -413,6 +445,16 @@ def main_cli(cli_args: Optional[List[str]] = None):
         logger.info("Verbose mode enabled - showing debug output")
     logger.info(f"Structured logs will be written to {log_path}")
 
+    raw_api_recorder = (
+        RawAPIRecorder(args.raw_api_log_dir) if args.raw_api_log_dir else None
+    )
+    if raw_api_recorder is not None:
+        logger.info(
+            "Raw API logs enabled at %s (run_id=%s)",
+            raw_api_recorder.log_dir,
+            raw_api_recorder.run_id,
+        )
+
     arc_solver = ARCTester(
         config=args.config,
         save_submission_dir=args.save_submission_dir,
@@ -420,6 +462,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
         print_submission=args.print_submission,
         num_attempts=args.num_attempts,
         retry_attempts=args.retry_attempts,
+        raw_api_recorder=raw_api_recorder,
     )
 
     arc_solver.generate_task_solution(data_dir=args.data_dir, task_id=args.task_id)
