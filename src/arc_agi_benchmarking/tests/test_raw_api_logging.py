@@ -155,6 +155,33 @@ def test_task_timeout_and_repeated_runs_append(tmp_path):
     assert all(event["event"] == "task_timed_out" for event in events)
 
 
+def test_fixed_log_file_appends_raw_events_after_application_records(
+    tmp_path,
+    monkeypatch,
+):
+    log_file = tmp_path / "openai.jsonl"
+    application_event = {
+        "timestamp": "2026-08-05T00:00:00+00:00",
+        "level": "INFO",
+        "logger": "main",
+        "message": "application event",
+    }
+    log_file.write_text(json.dumps(application_event) + "\n")
+    recorder = RawAPIRecorder(log_file=log_file, run_id="combined-run")
+    adapter = make_adapter(monkeypatch, recorder)
+
+    with adapter.request_context(task_id="task-a"):
+        adapter._request("responses.create", lambda: {"id": "response-1"})
+
+    events = read_events(log_file)
+    assert events[0] == application_event
+    assert [event["event"] for event in events[1:]] == [
+        "request_started",
+        "request_succeeded",
+    ]
+    assert all(event["run_id"] == "combined-run" for event in events[1:])
+
+
 def test_concurrent_writes_remain_valid_jsonl(tmp_path):
     recorder = RawAPIRecorder(tmp_path, run_id="concurrent-run")
 

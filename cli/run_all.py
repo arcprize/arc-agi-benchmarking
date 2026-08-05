@@ -431,11 +431,17 @@ async def main(task_list_file: Optional[str],
                resume: bool = True,
                rate_limit_divisor: int = 1,
                max_tasks_per_run: Optional[int] = None,
-               max_concurrency: Optional[int] = None,
-               raw_api_recorder: Optional[RawAPIRecorder] = None) -> int:
+               max_concurrency: Optional[int] = None) -> int:
     start_time = time.perf_counter()
+    raw_api_recorder = RawAPIRecorder(log_dir=logs_base_dir)
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
+    logger.info(
+        "Raw API events will be appended to per-task application logs in %s "
+        "(run_id=%s)",
+        raw_api_recorder.log_dir,
+        raw_api_recorder.run_id,
+    )
     if max_task_timeout:
         logger.info(f"Task timeout: {max_task_timeout}s (CLI override)")
     if circuit_breaker_threshold:
@@ -680,15 +686,9 @@ if __name__ == "__main__":
         "--logs-base-dir",
         type=str,
         default="logs",
-        help="Base directory for JSONL logs. Per-task logs go to <base>/<config>/<task_id>/openai.jsonl (default: logs)."
-    )
-    parser.add_argument(
-        "--raw-api-log-dir",
-        type=Path,
-        default=None,
         help=(
-            "Optional config/dataset directory for append-only raw API logs. "
-            "Per-task events are written as <dir>/<task_id>.jsonl."
+            "Base directory for combined application and raw API JSONL logs. "
+            "Per-task logs go to <base>/<task_id>.jsonl (default: logs)."
         ),
     )
     parser.add_argument(
@@ -793,16 +793,6 @@ if __name__ == "__main__":
         project_root = Path(__file__).resolve().parent.parent
         logs_base_dir = (project_root / logs_base_dir).resolve()
 
-    raw_api_recorder = (
-        RawAPIRecorder(args.raw_api_log_dir) if args.raw_api_log_dir else None
-    )
-    if raw_api_recorder is not None:
-        logger.info(
-            "Raw API logs enabled at %s (run_id=%s)",
-            raw_api_recorder.log_dir,
-            raw_api_recorder.run_id,
-        )
-
     # --- Preflight validation ---
     if not args.skip_preflight:
         logger.info("Running preflight validation...")
@@ -852,7 +842,6 @@ if __name__ == "__main__":
         rate_limit_divisor=args.rate_limit_divisor,
         max_tasks_per_run=args.max_tasks_per_run,
         max_concurrency=args.max_concurrency,
-        raw_api_recorder=raw_api_recorder,
     ))
     
     sys.exit(exit_code_from_main) 

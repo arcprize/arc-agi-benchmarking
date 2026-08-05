@@ -411,15 +411,6 @@ def main_cli(cli_args: Optional[List[str]] = None):
         action="store_true",
         help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)",
     )
-    parser.add_argument(
-        "--raw-api-log-dir",
-        type=Path,
-        default=None,
-        help=(
-            "Optional config/dataset directory for append-only raw API logs. "
-            "Per-task events are written as <dir>/<task_id>.jsonl."
-        ),
-    )
     args = parser.parse_args(cli_args)
 
     # Set metrics enabled status based on CLI arg first
@@ -445,15 +436,12 @@ def main_cli(cli_args: Optional[List[str]] = None):
         logger.info("Verbose mode enabled - showing debug output")
     logger.info(f"Structured logs will be written to {log_path}")
 
-    raw_api_recorder = (
-        RawAPIRecorder(args.raw_api_log_dir) if args.raw_api_log_dir else None
+    raw_api_recorder = RawAPIRecorder(log_file=log_path)
+    logger.info(
+        "Raw API events will be appended to %s (run_id=%s)",
+        log_path,
+        raw_api_recorder.run_id,
     )
-    if raw_api_recorder is not None:
-        logger.info(
-            "Raw API logs enabled at %s (run_id=%s)",
-            raw_api_recorder.log_dir,
-            raw_api_recorder.run_id,
-        )
 
     arc_solver = ARCTester(
         config=args.config,

@@ -275,44 +275,6 @@ def test_resolve_config_runs_builds_config_by_dataset_matrix():
     assert runs[1].command[-2:] == ("--data_dir", "data/v2/public_eval")
 
 
-def test_raw_api_log_root_isolated_by_config_and_dataset():
-    args = argparse.Namespace(
-        configs=["openai-high"],
-        save_submission_root=Path("submissions"),
-        run_name=None,
-        datasets=["v1/public_eval=data/v1/public_eval"],
-        logs_base_dir=Path("logs"),
-        raw_api_log_root=Path("raw_api_logs"),
-        max_concurrency=None,
-    )
-
-    with patch.object(
-        run_configs,
-        "read_models_config",
-        return_value=SimpleNamespace(provider="openai"),
-    ):
-        run = run_configs.resolve_config_runs(args, [])[0]
-
-    expected = Path("raw_api_logs/openai-high/v1/public_eval")
-    assert run.raw_api_log_dir == expected
-    option_index = run.command.index("--raw-api-log-dir")
-    assert run.command[option_index + 1] == str(expected)
-
-
-def test_raw_api_child_directory_cannot_be_forwarded():
-    with pytest.raises(SystemExit):
-        run_configs.parse_args(
-            [
-                "--configs",
-                "openai-high",
-                "--run-name",
-                "v1/public_eval",
-                "--raw-api-log-dir",
-                "somewhere",
-            ]
-        )
-
-
 def test_parse_args_forwards_run_all_options():
     args, forwarded = run_configs.parse_args(
         [

@@ -146,8 +146,24 @@ class RawAPIRecorder:
 
     schema_version = 1
 
-    def __init__(self, log_dir: Path | str, run_id: Optional[str] = None):
-        self.log_dir = Path(log_dir).expanduser().resolve()
+    def __init__(
+        self,
+        log_dir: Path | str | None = None,
+        run_id: Optional[str] = None,
+        *,
+        log_file: Path | str | None = None,
+    ):
+        if (log_dir is None) == (log_file is None):
+            raise ValueError("Specify exactly one of log_dir or log_file")
+
+        self.log_file = (
+            Path(log_file).expanduser().resolve() if log_file is not None else None
+        )
+        self.log_dir = (
+            self.log_file.parent
+            if self.log_file is not None
+            else Path(log_dir).expanduser().resolve()
+        )
         self.log_dir.mkdir(parents=True, exist_ok=True)
         if not self.log_dir.is_dir():
             raise ValueError(f"Raw API log path is not a directory: {self.log_dir}")
@@ -260,13 +276,12 @@ class RawAPIRecorder:
 
     def _append(self, task_id: Optional[str], event: Mapping[str, Any]) -> None:
         task_label = _safe_task_label(task_id)
-        path = self.log_dir / f"{task_label}.jsonl"
+        path = self.log_file or self.log_dir / f"{task_label}.jsonl"
         line = json.dumps(event, ensure_ascii=True, separators=(",", ":"), default=str)
         try:
             with self._write_lock:
                 with path.open("a", encoding="utf-8") as output:
-                    output.write(line)
-                    output.write("\n")
+                    output.write(f"{line}\n")
                     output.flush()
         except Exception:
             logger.exception("Failed to write raw API log event to %s", path)

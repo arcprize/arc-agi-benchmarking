@@ -64,15 +64,14 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 - `--retry_attempts`: Internal retries within an attempt if the provider call fails.
 - `--max-tasks-per-run`: Maximum unsubmitted tasks scheduled by each config/dataset child. Existing-submission filtering happens before this cap is applied.
 - `--log-level`: `DEBUG|INFO|WARNING|ERROR|CRITICAL|NONE`.
+- `--logs-base-dir`: Root for per-task application and raw API JSONL logs (default: `logs`).
 - `--enable-metrics`: Toggle metrics collection (saved in `metrics_output/`).
-- `--raw-api-log-dir`: For `main.py` and `run_all.py`, enable raw API logging in an exact config/dataset directory. Per-task events append to `<dir>/<task_id>.jsonl`.
 - Multi-config launcher-specific:
   - `--configs`: Space-separated model config names to run concurrently.
   - `--save_submission_root`: Root directory; each child writes to `<root>/<config>/<dataset-or-run-name>`.
   - `--datasets`: Space-separated `NAME=PATH` datasets; launches every config against every dataset. `NAME` may be a safe relative path such as `v1/public_eval`, producing nested output directories.
   - `--run_name`: Single-dataset run path such as `v2/public_eval`; mutually exclusive with `--datasets`.
   - `--max-concurrency`: Optional hard cap on in-flight ARC tasks per provider across every child process.
-  - `--raw-api-log-root`: Enable raw API logging under `<root>/<config>/<dataset>/<task_id>.jsonl`.
 - Scoring-specific:
   - `--submission_dir`: Where your run wrote outputs
   - `--results_dir` Where to write aggregated metrics/results
@@ -95,7 +94,6 @@ For runs beyond the Quickstart:
       v2/public_eval=data/v2/public_eval \
       v2/semi_private_eval=data/v2/semi_private_eval \
     --save_submission_root submissions \
-    --raw-api-log-root raw_api_logs \
     --max-concurrency 8 \
     --max-tasks-per-run 10 \
     --log-level INFO
@@ -108,11 +106,11 @@ See the CLI parameters section for flag details.
 
 ### Raw API logs
 
-Raw API logging is disabled unless one of the raw-log options is supplied. The recommended multi-config form is `--raw-api-log-root raw_api_logs`; `raw_api_logs/` is git-ignored because records can contain semi-private task prompts, model responses, reasoning, and tool data.
+Raw API logging is automatic. Raw events are appended to the same git-ignored per-task JSONL files as application logs. For `run_configs.py`, the default layout is `logs/<config>/<dataset>/<task_id>.jsonl`; use the existing `--logs-base-dir` option to move the entire combined log tree.
 
 Each task file is append-only JSONL. A `request_started` event is written before an adapter-visible provider operation, followed by a correlated `request_succeeded` or `request_failed` event with the same request ID. Every event also carries a per-process run ID, so repeated invocations can share a task file. Task-level timeouts add a `task_timed_out` event, and an unmatched `request_started` event identifies a request interrupted before a terminal event could be recorded.
 
-These files differ from the structured application logs under `logs/`: raw API logs retain sanitized request payloads and provider responses, while application logs describe benchmark execution. Credentials and authorization fields are redacted. SDK-internal retries and internal calls made by agent SDKs are not visible to this recorder; those adapters produce one logical invocation record.
+Application records use the existing `level`, `logger`, and `message` fields, while raw API records use the `event` field and retain sanitized request payloads and provider responses. Credentials and authorization fields are redacted. SDK-internal retries and internal calls made by agent SDKs are not visible to this recorder; those adapters produce one logical invocation record.
 
 ## Configuring models and providers
 Tests are run based on model configs. Model configs hold the configuration (max output tokens, temperature, pricing etc.) for each test.
