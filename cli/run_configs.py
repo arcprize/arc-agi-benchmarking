@@ -151,6 +151,8 @@ def _validate_launcher_args(
         parser.error("--configs must not contain duplicate configuration names")
     if args.max_concurrency is not None and args.max_concurrency < 1:
         parser.error("--max-concurrency must be at least 1")
+    if _option_is_present(forwarded_args, "--log-level"):
+        parser.error("--log-level is no longer supported; logging is always enabled")
 
     unsafe_configs = [
         config

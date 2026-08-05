@@ -19,6 +19,27 @@ from arc_agi_benchmarking.schemas import Attempt # Import Attempt schema
 
 # --- Test ARCTester Logging (main.py) ---
 
+
+@pytest.mark.parametrize(
+    "script,extra_args",
+    [
+        ("main.py", ["--config", "random-baseline"]),
+        ("cli/run_all.py", []),
+    ],
+)
+def test_log_level_cli_option_is_not_supported(script, extra_args):
+    repository_root = Path(__file__).resolve().parents[3]
+    result = subprocess.run(
+        [sys.executable, script, *extra_args, "--log-level", "INFO"],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "unrecognized arguments: --log-level INFO" in result.stderr
+
 @pytest.mark.parametrize(
     "log_level_arg, expected_debug_present, expected_info_present",
     [
@@ -178,55 +199,3 @@ async def test_orchestrator_log_levels(
     # We could add an assertion here that DEBUG logs are *never* found in this test scenario
     has_debug = any(rec.levelno == logging.DEBUG for rec in cli_records)
     assert not has_debug, f"Unexpected DEBUG logs found for level {log_level_arg}"
-
-
-@pytest.mark.asyncio
-@patch('cli.run_all.run_single_test_wrapper', return_value=True)
-@patch('cli.run_all.read_provider_rate_limits', return_value={})
-@patch('cli.run_all.get_model_config')
-@patch('builtins.open')
-@patch('cli.run_all.exit', side_effect=lambda code: None) # Prevent SystemExit
-async def test_orchestrator_log_level_none(mock_exit, mock_open, mock_get_model_config, mock_read_limits, mock_run_wrapper, caplog):
-    """
-    Tests that --log-level NONE effectively silences logging output.
-    Uses caplog to check for absence of records.
-    """
-    # Set root logger high first, then specific logger if needed (though NONE handler should stop it)
-    # logging.getLogger().setLevel(logging.CRITICAL + 1) # REMOVED - Rely on cli/run_all setup for NONE
-    # logging.getLogger('cli.run_all').setLevel(logging.CRITICAL + 1) # REMOVED
-    # Caplog captures everything regardless of handler levels, check records
-    caplog.set_level(logging.DEBUG) 
-
-    mock_model_config = MagicMock(provider="mock_provider")
-    mock_get_model_config.return_value = mock_model_config
-    
-    # Make mock_open return an object that supports context management AND iteration
-    mock_file_handle = MagicMock()
-    file_lines = ["task1\n"]
-    mock_file_handle.__enter__.return_value.__iter__.return_value = iter(file_lines)
-    mock_open.return_value = mock_file_handle
-
-    # Simulate the effect of --log-level NONE on the logger config
-    # We already set the levels above, no need to simulate argparse/basicConfig here # REMOVED Comment
-    # Setting levels directly as the test runs outside __main__ where basicConfig is called
-    logging.getLogger('cli.run_all').setLevel(logging.CRITICAL + 1)
-    # Also set root logger high in case of propagation or library logging
-    logging.getLogger().setLevel(logging.CRITICAL + 1)
-    
-    await main(
-        task_list_file="dummy.txt",
-        config_to_test="mock_config",
-        data_dir="dummy_data",
-        save_submission_dir="dummy_submissions",
-        overwrite_submission=False,
-        print_submission=False,
-        num_attempts=1,
-        retry_attempts=1,
-        logs_base_dir=Path("test_logs")
-    )
-
-    assert len(caplog.records) == 0, f"Expected no log records, but got {len(caplog.records)}: {caplog.text}"
-
-    # Restore levels after test if needed, though pytest usually isolates
-    # logging.getLogger('cli.run_all').setLevel(logging.NOTSET)
-    # logging.getLogger().setLevel(logging.NOTSET)

@@ -671,13 +671,6 @@ if __name__ == "__main__":
         help=f"Number of internal retry attempts by ARCTester for failed predictions. Defaults to {DEFAULT_RETRY_ATTEMPTS}"
     )
     parser.add_argument(
-        "--log-level", 
-        type=str, 
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE"],
-        help="Set the logging level for the orchestrator and ARCTester (default: INFO). Use NONE to disable logging."
-    )
-    parser.add_argument(
         "--enable-metrics",
         action="store_true", # Defaults to False if not present
         help="Enable metrics collection and dumping (disabled by default)."
@@ -763,7 +756,7 @@ if __name__ == "__main__":
     set_metrics_enabled(args.enable_metrics)
 
     # Configure structured logging for the entire application
-    setup_logging(level=args.log_level, quiet_libraries=True)
+    setup_logging(level="INFO", quiet_libraries=True)
 
     config_name = args.config.strip() if args.config else DEFAULT_MODEL_CONFIG
     if not config_name:

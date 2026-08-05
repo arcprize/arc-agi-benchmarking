@@ -172,7 +172,6 @@ def test_main_cli_execution_and_arctester_mocking(mock_set_metrics_enabled,
         "--data_dir", "dummy/cli_data",
         "--task_id", "dummy_cli_task",
         "--config", "dummy_cli_config", # This will be passed to read_models_config
-        "--log-level", "CRITICAL", # Keep test console clean
         "--save_submission_dir", "dummy/cli_submissions" # Example argument
     ]
 
@@ -204,4 +203,5 @@ def test_main_cli_execution_and_arctester_mocking(mock_set_metrics_enabled,
     print(f"mock_set_metrics_enabled called with: {mock_set_metrics_enabled.call_args}")
 
     mock_setup_logging.assert_called_once()
+    assert mock_setup_logging.call_args.kwargs["level"] == "INFO"
     print("✅ test_main_cli_execution_and_arctester_mocking completed successfully.")

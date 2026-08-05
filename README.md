@@ -24,8 +24,7 @@ uv run main.py \
   --data_dir data/sample/tasks \
   --config random-baseline \
   --task_id 66e6c45b \
-  --save_submission_dir submissions/random-single \
-  --log-level INFO
+  --save_submission_dir submissions/random-single
 ```
 
 3) Run all bundled sample tasks with the random solver:
@@ -33,8 +32,7 @@ uv run main.py \
 uv run cli/run_all.py \
   --config random-baseline \
   --data_dir data/sample/tasks \
-  --save_submission_dir submissions/random-baseline-sample \
-  --log-level INFO
+  --save_submission_dir submissions/random-baseline-sample
 ```
 
 4) Score the outputs you just generated:
@@ -63,7 +61,6 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 - `--num_attempts`: How many attempts per test pair (per task).
 - `--retry_attempts`: Internal retries within an attempt if the provider call fails.
 - `--max-tasks-per-run`: Maximum unsubmitted tasks scheduled by each config/dataset child. Existing-submission filtering happens before this cap is applied.
-- `--log-level`: `DEBUG|INFO|WARNING|ERROR|CRITICAL|NONE`.
 - `--logs-base-dir`: Root for per-task application and raw API JSONL logs (default: `logs`).
 - `--enable-metrics`: Toggle metrics collection (saved in `metrics_output/`).
 - Multi-config launcher-specific:
@@ -78,7 +75,7 @@ Rather than using the sample data in `data/sample/tasks/`, you can use the real 
 
 ## Running models
 For runs beyond the Quickstart:
-- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, attempts/retries, and log level. Uses asyncio, best-effort outbound API-request pacing, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; use `run_configs.py` for multiple configs. Calls visible to the benchmark runner—including model, parsing, retry, and explicit background/batch control calls—consume rate-limit allowance; starting an ARC task does not. Configured rates are operational ballparks, not strict caps: SDK-managed retries, agent SDKs that hide internal model calls, and synchronous work that continues after a task timeout can produce additional provider traffic.
+- Batch (recommended): `uv run cli/run_all.py` with your task list, model config, data dir, submission dir, and attempts/retries. Uses asyncio, best-effort outbound API-request pacing, and tenacity retries; outputs land in `--save_submission_dir` (e.g., `submissions/<config>/<version>/<eval_type>`). `run_all` handles one model config per invocation; use `run_configs.py` for multiple configs. Calls visible to the benchmark runner—including model, parsing, retry, and explicit background/batch control calls—consume rate-limit allowance; starting an ARC task does not. Configured rates are operational ballparks, not strict caps: SDK-managed retries, agent SDKs that hide internal model calls, and synchronous work that continues after a task timeout can produce additional provider traffic.
 - Multiple configs: use `uv run cli/run_configs.py`. It starts one `run_all.py` process per config concurrently, gives each process isolated submission/log directories, and prefixes console output with the config name:
   ```bash
   uv run cli/run_configs.py \
@@ -95,13 +92,12 @@ For runs beyond the Quickstart:
       v2/semi_private_eval=data/v2/semi_private_eval \
     --save_submission_root submissions \
     --max-concurrency 8 \
-    --max-tasks-per-run 10 \
-    --log-level INFO
+    --max-tasks-per-run 10
   ```
   This is the normal full benchmark layout: each config runs against `public_eval` and `semi_private_eval` for both v1 and v2. The example starts twenty child runs, schedules at most 10 pending tasks in each child, and writes to `submissions/<config>/<version>/<eval_type>`, such as `submissions/gpt-5-2-2025-12-11-thinking-high/v1/public_eval`. Provider rate limits are shared automatically across every child: all twenty OpenAI runs receive one-twentieth of the effective OpenAI rate while retaining its configured period. Configs using different providers are grouped and divided independently. The split controls the average request rate, so small simultaneous bursts can still occur across processes. `--max-concurrency 8` adds a shared cross-process semaphore that caps each provider at eight in-flight ARC tasks across all child runs.
 
   The original single-dataset form remains available with `--data_dir data/v2/public_eval --run_name v2/public_eval` instead of `--datasets`.
-- Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory and log level.
+- Single task (debug): `uv run main.py` with a single `--config`, `--task_id`, and your data dir/save directory. Use `--verbose` when debug-level output is needed.
 See the CLI parameters section for flag details.
 
 ### Raw API logs

@@ -400,13 +400,6 @@ def main_cli(cli_args: Optional[List[str]] = None):
         help="Enable metrics collection and dumping (disabled by default).",
     )
     parser.add_argument(
-        "--log-level",
-        type=str,
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set the logging level (default: INFO)",
-    )
-    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable verbose output (shows debug info for arc_agi_benchmarking only, keeps libraries quiet)",
@@ -422,7 +415,7 @@ def main_cli(cli_args: Optional[List[str]] = None):
     log_path = log_dir / "openai.jsonl"
 
     # Configure structured logging (writes to console and file)
-    log_level = "DEBUG" if args.verbose else args.log_level
+    log_level = "DEBUG" if args.verbose else "INFO"
     setup_logging(
         level=log_level,
         log_file=log_path,
