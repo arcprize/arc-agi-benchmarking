@@ -93,7 +93,8 @@ def test_request_success_emits_correlated_sanitized_events(
         "request_started",
         "request_succeeded",
     ]
-    assert events[0]["request_id"] == events[1]["request_id"]
+    assert "request_id" not in events[0]
+    assert "request_id" not in events[1]
     assert events[0]["run_id"] == "run-1"
     assert events[0]["context"]["attempt"] == 2
     assert events[0]["context"]["retry"] == 3

@@ -134,7 +134,6 @@ def serialize_for_raw_log(value: Any, *, _seen: Optional[set[int]] = None) -> An
 
 @dataclass(frozen=True)
 class RawAPIRequestHandle:
-    request_id: str
     started_monotonic: float
     context: dict[str, Any]
     operation: str
@@ -165,7 +164,6 @@ class RawAPILogger:
     ) -> RawAPIRequestHandle:
         timestamp = datetime.now(timezone.utc)
         handle = RawAPIRequestHandle(
-            request_id=str(uuid.uuid4()),
             started_monotonic=time.monotonic(),
             context=serialize_for_raw_log(dict(context)),
             operation=operation,
@@ -247,7 +245,6 @@ class RawAPILogger:
             "schema_version": self.schema_version,
             "event": event,
             "run_id": self.run_id,
-            "request_id": handle.request_id,
             "timestamp": timestamp.isoformat(),
             "operation": handle.operation,
             "context": handle.context,

@@ -104,7 +104,7 @@ See the CLI parameters section for flag details.
 
 Raw API logging is automatic and uses the existing structured logging handlers. Raw events are appended to the same git-ignored per-task JSONL files as application logs. For `run_configs.py`, the default layout is `logs/<config>/<dataset>/<task_id>.jsonl`; use the existing `--logs-base-dir` option to move the entire combined log tree.
 
-Each task file is append-only JSONL. A `request_started` event is written before an adapter-visible provider operation, followed by a correlated `request_succeeded` or `request_failed` event with the same request ID. Every event also carries a per-process run ID, so repeated invocations can share a task file. Task-level timeouts add a `task_timed_out` event, and an unmatched `request_started` event identifies a request interrupted before a terminal event could be recorded.
+Each task file is append-only JSONL. Within a run, adapter-visible provider operations are sequential: a `request_started` event is followed by its `request_succeeded` or `request_failed` event. Every event carries a per-process run ID, so repeated invocations can share a task file without ambiguity. Task-level timeouts add a `task_timed_out` event, and an unmatched `request_started` event identifies a request interrupted before a terminal event could be recorded.
 
 Application records use the existing `level`, `logger`, and `message` fields, while raw API records use the `event` field and retain sanitized request payloads and provider responses. Credentials and authorization fields are redacted. SDK-internal retries and internal calls made by agent SDKs are not visible to this recorder; those adapters produce one logical invocation record.
 
