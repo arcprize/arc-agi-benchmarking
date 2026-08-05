@@ -9,8 +9,8 @@ from typing import Callable, TypeVar
 from arc_agi_benchmarking.schemas import Attempt, ModelConfig
 from arc_agi_benchmarking.utils.task_utils import read_models_config
 from arc_agi_benchmarking.utils.rate_limiter import RequestRateLimiter
-from arc_agi_benchmarking.utils.raw_api_logging import (
-    RawAPIRecorder,
+from arc_agi_benchmarking.utils.logging_utils import (
+    RawAPILogger,
     RawAPIRequestHandle,
 )
 
@@ -24,7 +24,7 @@ class ProviderAdapter(abc.ABC):
         self,
         config: str,
         request_limiter: Optional[RequestRateLimiter] = None,
-        raw_api_recorder: Optional[RawAPIRecorder] = None,
+        raw_api_logger: Optional[RawAPILogger] = None,
     ):
         """
         Initialize the provider adapter with model configuration.
@@ -35,7 +35,7 @@ class ProviderAdapter(abc.ABC):
         self.config = config
         self.model_config: ModelConfig = read_models_config(config)
         self.request_limiter = request_limiter
-        self.raw_api_recorder = raw_api_recorder
+        self.raw_api_logger = raw_api_logger
         self._raw_api_context: Dict[str, Any] = {}
         self._deferred_raw_api_requests: Dict[int, RawAPIRequestHandle] = {}
         
@@ -84,11 +84,11 @@ class ProviderAdapter(abc.ABC):
                     self.model_config.provider,
                     operation,
                 )
-        recorder = getattr(self, "raw_api_recorder", None)
+        api_logger = getattr(self, "raw_api_logger", None)
         handle = None
-        if recorder is not None:
+        if api_logger is not None:
             try:
-                handle = recorder.start_request(
+                handle = api_logger.start_request(
                     operation,
                     args,
                     kwargs,
@@ -105,7 +105,7 @@ class ProviderAdapter(abc.ABC):
         except Exception as error:
             if handle is not None:
                 try:
-                    recorder.record_failure(handle, error)
+                    api_logger.record_failure(handle, error)
                 except Exception:
                     logger.exception(
                         "Failed to record raw API request failure for %s; continuing",
@@ -126,7 +126,7 @@ class ProviderAdapter(abc.ABC):
                 deferred_requests[id(response)] = handle
             else:
                 try:
-                    recorder.record_success(handle, response)
+                    api_logger.record_success(handle, response)
                 except Exception:
                     logger.exception(
                         "Failed to record raw API response for %s; continuing",
@@ -137,10 +137,10 @@ class ProviderAdapter(abc.ABC):
     def _record_deferred_raw_api_success(self, source: Any, response: Any) -> None:
         deferred_requests = getattr(self, "_deferred_raw_api_requests", {})
         handle = deferred_requests.pop(id(source), None)
-        recorder = getattr(self, "raw_api_recorder", None)
-        if handle is not None and recorder is not None:
+        api_logger = getattr(self, "raw_api_logger", None)
+        if handle is not None and api_logger is not None:
             try:
-                recorder.record_success(handle, response)
+                api_logger.record_success(handle, response)
             except Exception:
                 logger.exception(
                     "Failed to record deferred raw API response for %s; continuing",
@@ -152,10 +152,10 @@ class ProviderAdapter(abc.ABC):
             return
         deferred_requests = getattr(self, "_deferred_raw_api_requests", {})
         handle = deferred_requests.pop(id(source), None)
-        recorder = getattr(self, "raw_api_recorder", None)
-        if handle is not None and recorder is not None:
+        api_logger = getattr(self, "raw_api_logger", None)
+        if handle is not None and api_logger is not None:
             try:
-                recorder.record_failure(handle, error)
+                api_logger.record_failure(handle, error)
             except Exception:
                 logger.exception(
                     "Failed to record deferred raw API failure for %s; continuing",

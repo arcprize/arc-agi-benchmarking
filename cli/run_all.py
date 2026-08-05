@@ -30,7 +30,7 @@ from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLi
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
 from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
-from arc_agi_benchmarking.utils.raw_api_logging import RawAPIRecorder
+from arc_agi_benchmarking.utils.logging_utils import RawAPILogger
 from arc_agi_benchmarking.resilience import (
     CircuitBreaker,
     CircuitBreakerOpenError,
@@ -290,7 +290,7 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
                                   concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None,
-                                  raw_api_recorder: Optional[RawAPIRecorder] = None) -> bool:
+                                  raw_api_logger: Optional[RawAPILogger] = None) -> bool:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     try:
@@ -320,7 +320,17 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
         # Ensure only records for this task/config reach this file handler
         class _TaskFilter(logging.Filter):
             def filter(self, record: logging.LogRecord) -> bool:
-                return record.config_name == config_name and record.task_id == task_id
+                raw_context = getattr(record, "raw_api_event", {}).get(
+                    "context",
+                    {},
+                )
+                record_config = getattr(record, "config_name", None) or raw_context.get(
+                    "config"
+                )
+                record_task = getattr(record, "task_id", None) or raw_context.get(
+                    "task_id"
+                )
+                return record_config == config_name and record_task == task_id
 
         # Set context vars so every log record (including library logs) carries config/task ids
         config_token = LOG_CONFIG_CTX.set(config_name)
@@ -341,7 +351,7 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
             num_attempts=num_attempts,
             retry_attempts=retry_attempts, # ARCTester's internal retries
             request_limiter=limiter,
-            raw_api_recorder=raw_api_recorder,
+            raw_api_logger=raw_api_logger,
             orchestrator_attempt=orchestrator_attempt,
             # print_logs removed from ARCTester instantiation
         )
@@ -402,8 +412,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
 
     except TaskTimeoutError as e:
         circuit_breaker.record_failure(e)
-        if raw_api_recorder is not None:
-            raw_api_recorder.record_task_timeout(
+        if raw_api_logger is not None:
+            raw_api_logger.record_task_timeout(
                 task_id=task_id,
                 config=config_name,
                 elapsed=e.elapsed,
@@ -433,14 +443,14 @@ async def main(task_list_file: Optional[str],
                max_tasks_per_run: Optional[int] = None,
                max_concurrency: Optional[int] = None) -> int:
     start_time = time.perf_counter()
-    raw_api_recorder = RawAPIRecorder(log_dir=logs_base_dir)
+    raw_api_logger = RawAPILogger()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
     logger.info(
         "Raw API events will be appended to per-task application logs in %s "
         "(run_id=%s)",
-        raw_api_recorder.log_dir,
-        raw_api_recorder.run_id,
+        logs_base_dir,
+        raw_api_logger.run_id,
     )
     if max_task_timeout:
         logger.info(f"Task timeout: {max_task_timeout}s (CLI override)")
@@ -567,7 +577,7 @@ async def main(task_list_file: Optional[str],
                 num_attempts, retry_attempts,
                 logs_base_dir,
                 concurrency_limiter,
-                raw_api_recorder,
+                raw_api_logger,
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")

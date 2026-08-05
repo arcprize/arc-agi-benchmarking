@@ -1,14 +1,16 @@
 import json
-from concurrent.futures import ThreadPoolExecutor
+import logging
 from dataclasses import dataclass
+from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from arc_agi_benchmarking.adapters.provider import ProviderAdapter
-from arc_agi_benchmarking.utils.raw_api_logging import (
-    RawAPIRecorder,
+from arc_agi_benchmarking.utils.logging_utils import (
+    RawAPILogger,
+    StructuredFormatter,
     serialize_for_raw_log,
 )
 
@@ -24,7 +26,24 @@ class DummyAdapter(ProviderAdapter):
         raise NotImplementedError
 
 
-def make_adapter(monkeypatch, recorder=None):
+@pytest.fixture
+def event_output():
+    output = StringIO()
+    event_logger = logging.getLogger(f"test.raw_api.{id(output)}")
+    event_logger.handlers.clear()
+    event_logger.propagate = False
+    event_logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler(output)
+    handler.setFormatter(StructuredFormatter())
+    event_logger.addHandler(handler)
+    try:
+        yield event_logger, output
+    finally:
+        handler.close()
+        event_logger.handlers.clear()
+
+
+def make_adapter(monkeypatch, api_logger=None):
     model_config = SimpleNamespace(
         provider="dummy",
         model_name="dummy-model",
@@ -34,16 +53,20 @@ def make_adapter(monkeypatch, recorder=None):
         "arc_agi_benchmarking.adapters.provider.read_models_config",
         lambda _config: model_config,
     )
-    return DummyAdapter("dummy-config", raw_api_recorder=recorder)
+    return DummyAdapter("dummy-config", raw_api_logger=api_logger)
 
 
-def read_events(path):
-    return [json.loads(line) for line in path.read_text().splitlines()]
+def read_events(output):
+    return [json.loads(line) for line in output.getvalue().splitlines()]
 
 
-def test_request_success_records_correlated_sanitized_events(tmp_path, monkeypatch):
-    recorder = RawAPIRecorder(tmp_path, run_id="run-1")
-    adapter = make_adapter(monkeypatch, recorder)
+def test_request_success_emits_correlated_sanitized_events(
+    monkeypatch,
+    event_output,
+):
+    event_logger, output = event_output
+    api_logger = RawAPILogger(run_id="run-1", event_logger=event_logger)
+    adapter = make_adapter(monkeypatch, api_logger)
 
     with adapter.request_context(
         config="dummy-config",
@@ -65,7 +88,7 @@ def test_request_success_records_correlated_sanitized_events(tmp_path, monkeypat
         )
 
     assert response["id"] == "response-1"
-    events = read_events(tmp_path / "task-a.jsonl")
+    events = read_events(output)
     assert [event["event"] for event in events] == [
         "request_started",
         "request_succeeded",
@@ -79,13 +102,14 @@ def test_request_success_records_correlated_sanitized_events(tmp_path, monkeypat
         events[0]["request"]["kwargs"]["extra_headers"]["Authorization"]
         == "[REDACTED]"
     )
-    assert "must-not-appear" not in (tmp_path / "task-a.jsonl").read_text()
+    assert "must-not-appear" not in output.getvalue()
     assert events[1]["response"]["output"] == "answer"
 
 
-def test_request_failure_records_error_and_reraises(tmp_path, monkeypatch):
-    recorder = RawAPIRecorder(tmp_path, run_id="run-2")
-    adapter = make_adapter(monkeypatch, recorder)
+def test_request_failure_emits_error_and_reraises(monkeypatch, event_output):
+    event_logger, output = event_output
+    api_logger = RawAPILogger(run_id="run-2", event_logger=event_logger)
+    adapter = make_adapter(monkeypatch, api_logger)
 
     class ProviderError(RuntimeError):
         status_code = 429
@@ -99,7 +123,7 @@ def test_request_failure_records_error_and_reraises(tmp_path, monkeypatch):
         with pytest.raises(ProviderError):
             adapter._request("messages.create", fail)
 
-    events = read_events(tmp_path / "task-b.jsonl")
+    events = read_events(output)
     assert [event["event"] for event in events] == [
         "request_started",
         "request_failed",
@@ -109,9 +133,10 @@ def test_request_failure_records_error_and_reraises(tmp_path, monkeypatch):
     assert events[1]["error"]["body"]["token"] == "[REDACTED]"
 
 
-def test_deferred_stream_records_final_response(tmp_path, monkeypatch):
-    recorder = RawAPIRecorder(tmp_path)
-    adapter = make_adapter(monkeypatch, recorder)
+def test_deferred_stream_emits_final_response(monkeypatch, event_output):
+    event_logger, output = event_output
+    api_logger = RawAPILogger(event_logger=event_logger)
+    adapter = make_adapter(monkeypatch, api_logger)
     stream = iter(["chunk-1", "chunk-2"])
 
     with adapter.request_context(task_id="stream-task"):
@@ -125,7 +150,7 @@ def test_deferred_stream_records_final_response(tmp_path, monkeypatch):
             {"output_text": "complete"},
         )
 
-    events = read_events(tmp_path / "stream-task.jsonl")
+    events = read_events(output)
     assert [event["event"] for event in events] == [
         "request_started",
         "request_succeeded",
@@ -133,9 +158,10 @@ def test_deferred_stream_records_final_response(tmp_path, monkeypatch):
     assert events[1]["response"] == {"output_text": "complete"}
 
 
-def test_task_timeout_and_repeated_runs_append(tmp_path):
-    first = RawAPIRecorder(tmp_path, run_id="first-run")
-    second = RawAPIRecorder(tmp_path, run_id="second-run")
+def test_task_timeout_and_repeated_runs_share_existing_handler(event_output):
+    event_logger, output = event_output
+    first = RawAPILogger(run_id="first-run", event_logger=event_logger)
+    second = RawAPILogger(run_id="second-run", event_logger=event_logger)
 
     first.record_task_timeout(
         task_id="timeout-task",
@@ -150,56 +176,29 @@ def test_task_timeout_and_repeated_runs_append(tmp_path):
         timeout=20,
     )
 
-    events = read_events(tmp_path / "timeout-task.jsonl")
+    events = read_events(output)
     assert [event["run_id"] for event in events] == ["first-run", "second-run"]
     assert all(event["event"] == "task_timed_out" for event in events)
 
 
-def test_fixed_log_file_appends_raw_events_after_application_records(
-    tmp_path,
+def test_application_and_api_events_use_same_structured_handler(
     monkeypatch,
+    event_output,
 ):
-    log_file = tmp_path / "openai.jsonl"
-    application_event = {
-        "timestamp": "2026-08-05T00:00:00+00:00",
-        "level": "INFO",
-        "logger": "main",
-        "message": "application event",
-    }
-    log_file.write_text(json.dumps(application_event) + "\n")
-    recorder = RawAPIRecorder(log_file=log_file, run_id="combined-run")
-    adapter = make_adapter(monkeypatch, recorder)
+    event_logger, output = event_output
+    event_logger.info("application event")
+    api_logger = RawAPILogger(run_id="combined-run", event_logger=event_logger)
+    adapter = make_adapter(monkeypatch, api_logger)
 
     with adapter.request_context(task_id="task-a"):
         adapter._request("responses.create", lambda: {"id": "response-1"})
 
-    events = read_events(log_file)
-    assert events[0] == application_event
+    events = read_events(output)
+    assert events[0]["message"] == "application event"
     assert [event["event"] for event in events[1:]] == [
         "request_started",
         "request_succeeded",
     ]
-    assert all(event["run_id"] == "combined-run" for event in events[1:])
-
-
-def test_concurrent_writes_remain_valid_jsonl(tmp_path):
-    recorder = RawAPIRecorder(tmp_path, run_id="concurrent-run")
-
-    def write_call(index):
-        handle = recorder.start_request(
-            "operation",
-            (),
-            {"index": index},
-            {"task_id": "shared-task"},
-        )
-        recorder.record_success(handle, {"index": index})
-
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        list(executor.map(write_call, range(40)))
-
-    events = read_events(tmp_path / "shared-task.jsonl")
-    assert len(events) == 80
-    assert len({event["request_id"] for event in events}) == 40
 
 
 def test_serializer_supports_dataclasses_and_environment_redaction():
@@ -215,16 +214,17 @@ def test_serializer_supports_dataclasses_and_environment_redaction():
     assert serialized == {"prompt": "hello", "env": "[REDACTED]"}
 
 
-def test_no_recorder_creates_no_files(tmp_path, monkeypatch):
+def test_no_api_logger_emits_no_raw_events(monkeypatch, event_output):
+    _event_logger, output = event_output
     adapter = make_adapter(monkeypatch)
     with adapter.request_context(task_id="no-log"):
         assert adapter._request("operation", lambda: "ok") == "ok"
-    assert list(tmp_path.iterdir()) == []
+    assert output.getvalue() == ""
 
 
-def test_recorder_failure_does_not_change_provider_result(monkeypatch):
-    recorder = Mock()
-    recorder.start_request.side_effect = OSError("disk unavailable")
-    adapter = make_adapter(monkeypatch, recorder)
+def test_api_logger_failure_does_not_change_provider_result(monkeypatch):
+    api_logger = Mock()
+    api_logger.start_request.side_effect = RuntimeError("logging unavailable")
+    adapter = make_adapter(monkeypatch, api_logger)
 
     assert adapter._request("operation", lambda: "provider-result") == "provider-result"
