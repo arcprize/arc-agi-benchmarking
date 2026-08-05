@@ -106,7 +106,7 @@ Raw API logging is automatic and uses the existing structured logging handlers. 
 
 Each task file is append-only JSONL. Within a run, adapter-visible provider operations are sequential: a `request_started` event is followed by its `request_succeeded` or `request_failed` event. Every event carries a per-process run ID, so repeated invocations can share a task file without ambiguity. Task-level timeouts add a `task_timed_out` event, and an unmatched `request_started` event identifies a request interrupted before a terminal event could be recorded.
 
-Application records use the existing `level`, `logger`, and `message` fields, while raw API records use the `event` field and retain sanitized request payloads and provider responses. Credentials and authorization fields are redacted. SDK-internal retries and internal calls made by agent SDKs are not visible to this recorder; those adapters produce one logical invocation record.
+Application records use the existing `level`, `logger`, and `message` fields, while raw API records use the `event` field and retain serialized request arguments and provider responses. The provider client and invoked callable are not part of the recorded request payload. No redaction is applied, so logs can contain task data and model reasoning and should be treated as sensitive. SDK-internal retries and internal calls made by agent SDKs are not visible to this recorder; those adapters produce one logical invocation record.
 
 ## Configuring models and providers
 Tests are run based on model configs. Model configs hold the configuration (max output tokens, temperature, pricing etc.) for each test.

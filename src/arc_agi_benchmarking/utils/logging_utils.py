@@ -36,30 +36,8 @@ CONTEXT_FIELDS = [
     "error_type",
 ]
 
-_REDACTED = "[REDACTED]"
-_SENSITIVE_KEYS = {
-    "api_key",
-    "apikey",
-    "authorization",
-    "cookie",
-    "env",
-    "environment",
-    "password",
-    "proxy_authorization",
-    "secret",
-    "token",
-}
-
-
-def _is_sensitive_key(key: Any) -> bool:
-    normalized = str(key).strip().lower().replace("-", "_")
-    return normalized in _SENSITIVE_KEYS or any(
-        normalized.endswith(f"_{suffix}") for suffix in _SENSITIVE_KEYS
-    )
-
-
 def serialize_for_raw_log(value: Any, *, _seen: Optional[set[int]] = None) -> Any:
-    """Convert SDK values to JSON-safe data while recursively redacting secrets."""
+    """Convert SDK values to JSON-safe data."""
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (datetime, date)):
@@ -80,11 +58,7 @@ def serialize_for_raw_log(value: Any, *, _seen: Optional[set[int]] = None) -> An
         seen.add(value_id)
         try:
             return {
-                str(key): (
-                    _REDACTED
-                    if _is_sensitive_key(key)
-                    else serialize_for_raw_log(item, _seen=seen)
-                )
+                str(key): serialize_for_raw_log(item, _seen=seen)
                 for key, item in value.items()
             }
         finally:

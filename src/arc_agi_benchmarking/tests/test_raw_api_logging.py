@@ -60,7 +60,7 @@ def read_events(output):
     return [json.loads(line) for line in output.getvalue().splitlines()]
 
 
-def test_request_success_emits_correlated_sanitized_events(
+def test_request_success_emits_context_and_serialized_events(
     monkeypatch,
     event_output,
 ):
@@ -83,8 +83,7 @@ def test_request_success_emits_correlated_sanitized_events(
             lambda **_kwargs: {"id": "response-1", "output": "answer"},
             model="dummy-model",
             input=[{"role": "user", "content": "prompt"}],
-            api_key="must-not-appear",
-            extra_headers={"Authorization": "Bearer must-not-appear", "x-trace": "ok"},
+            extra_headers={"x-trace": "trace-1"},
         )
 
     assert response["id"] == "response-1"
@@ -98,12 +97,9 @@ def test_request_success_emits_correlated_sanitized_events(
     assert events[0]["run_id"] == "run-1"
     assert events[0]["context"]["attempt"] == 2
     assert events[0]["context"]["retry"] == 3
-    assert events[0]["request"]["kwargs"]["api_key"] == "[REDACTED]"
-    assert (
-        events[0]["request"]["kwargs"]["extra_headers"]["Authorization"]
-        == "[REDACTED]"
-    )
-    assert "must-not-appear" not in output.getvalue()
+    assert events[0]["request"]["kwargs"]["extra_headers"] == {
+        "x-trace": "trace-1"
+    }
     assert events[1]["response"]["output"] == "answer"
 
 
@@ -115,7 +111,7 @@ def test_request_failure_emits_error_and_reraises(monkeypatch, event_output):
     class ProviderError(RuntimeError):
         status_code = 429
         request_id = "provider-request-1"
-        body = {"error": "rate limited", "token": "must-not-appear"}
+        body = {"error": "rate limited", "retry_after": 30}
 
     def fail():
         raise ProviderError("rate limited")
@@ -131,7 +127,7 @@ def test_request_failure_emits_error_and_reraises(monkeypatch, event_output):
     ]
     assert events[1]["error"]["status_code"] == 429
     assert events[1]["error"]["request_id"] == "provider-request-1"
-    assert events[1]["error"]["body"]["token"] == "[REDACTED]"
+    assert events[1]["error"]["body"]["retry_after"] == 30
 
 
 def test_deferred_stream_emits_final_response(monkeypatch, event_output):
@@ -202,17 +198,20 @@ def test_application_and_api_events_use_same_structured_handler(
     ]
 
 
-def test_serializer_supports_dataclasses_and_environment_redaction():
+def test_serializer_supports_dataclasses_and_nested_mappings():
     @dataclass
     class Payload:
         prompt: str
-        env: dict[str, str]
+        metadata: dict[str, str]
 
     serialized = serialize_for_raw_log(
-        Payload(prompt="hello", env={"API_KEY": "must-not-appear"})
+        Payload(prompt="hello", metadata={"trace_id": "trace-1"})
     )
 
-    assert serialized == {"prompt": "hello", "env": "[REDACTED]"}
+    assert serialized == {
+        "prompt": "hello",
+        "metadata": {"trace_id": "trace-1"},
+    }
 
 
 def test_no_api_logger_emits_no_raw_events(monkeypatch, event_output):
