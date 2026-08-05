@@ -258,7 +258,7 @@ def test_resolve_config_runs_builds_config_by_dataset_matrix():
         "read_models_config",
         side_effect=lambda config: providers[config],
     ):
-        runs = run_configs.resolve_config_runs(args, ["--log-level", "INFO"])
+        runs = run_configs.resolve_config_runs(args, ["--skip-preflight"])
 
     assert [(run.config, run.dataset) for run in runs] == [
         ("xai-high", "v1/public_eval"),
@@ -289,14 +289,13 @@ def test_parse_args_forwards_run_all_options():
             "v2",
             "--max-concurrency",
             "8",
-            "--log-level",
-            "INFO",
+            "--skip-preflight",
         ]
     )
 
     assert args.configs == ["xai-high", "xai-low"]
     assert args.max_concurrency == 8
-    assert forwarded == ["--data_dir", "data/v2", "--log-level", "INFO"]
+    assert forwarded == ["--data_dir", "data/v2", "--skip-preflight"]
 
 
 @pytest.mark.parametrize("value", ["0", "-1"])
@@ -325,8 +324,7 @@ def test_parse_args_accepts_named_datasets_without_run_name():
             "v2/public_eval=data/v2/public_eval",
             "--save_submission_root",
             "submissions",
-            "--log-level",
-            "INFO",
+            "--no-resume",
         ]
     )
 
@@ -335,7 +333,21 @@ def test_parse_args_accepts_named_datasets_without_run_name():
         "v2/public_eval=data/v2/public_eval",
     ]
     assert args.run_name is None
-    assert forwarded == ["--log-level", "INFO"]
+    assert forwarded == ["--no-resume"]
+
+
+def test_parse_args_rejects_removed_log_level_option():
+    with pytest.raises(SystemExit):
+        run_configs.parse_args(
+            [
+                "--configs",
+                "xai-high",
+                "--run-name",
+                "v2",
+                "--log-level",
+                "INFO",
+            ]
+        )
 
 
 @pytest.mark.parametrize(

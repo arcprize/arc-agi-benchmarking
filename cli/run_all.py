@@ -30,6 +30,7 @@ from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLi
 from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
 from arc_agi_benchmarking.utils.preflight import run_preflight
 from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
+from arc_agi_benchmarking.utils.logging_utils import RawAPILogger
 from arc_agi_benchmarking.resilience import (
     CircuitBreaker,
     CircuitBreakerOpenError,
@@ -288,7 +289,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
                                   overwrite_submission: bool, print_submission: bool,
                                   num_attempts: int, retry_attempts: int,
                                   logs_base_dir: Path,
-                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None) -> bool:
+                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None,
+                                  raw_api_logger: Optional[RawAPILogger] = None) -> bool:
     logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
 
     try:
@@ -297,6 +299,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
         logger.warning(f"[Orchestrator] Circuit breaker OPEN for {config_name}, skipping {task_id}. Recovery in {e.recovery_time:.1f}s")
         return False
 
+    orchestrator_attempt = 0
+
     @retry(
         wait=wait_exponential(multiplier=1, min=4, max=60),
         stop=stop_after_attempt(4),
@@ -304,6 +308,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
         before_sleep=before_sleep_log(logger, logging.WARNING)
     )
     def _synchronous_task_execution_attempt_with_tenacity():
+        nonlocal orchestrator_attempt
+        orchestrator_attempt += 1
         logger.debug(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
 
         # Configure per-task JSONL file logging: <logs_base_dir>/<config>/<task_id>/openai.jsonl
@@ -314,7 +320,17 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
         # Ensure only records for this task/config reach this file handler
         class _TaskFilter(logging.Filter):
             def filter(self, record: logging.LogRecord) -> bool:
-                return record.config_name == config_name and record.task_id == task_id
+                raw_context = getattr(record, "raw_api_event", {}).get(
+                    "context",
+                    {},
+                )
+                record_config = getattr(record, "config_name", None) or raw_context.get(
+                    "config"
+                )
+                record_task = getattr(record, "task_id", None) or raw_context.get(
+                    "task_id"
+                )
+                return record_config == config_name and record_task == task_id
 
         # Set context vars so every log record (including library logs) carries config/task ids
         config_token = LOG_CONFIG_CTX.set(config_name)
@@ -335,6 +351,8 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
             num_attempts=num_attempts,
             retry_attempts=retry_attempts, # ARCTester's internal retries
             request_limiter=limiter,
+            raw_api_logger=raw_api_logger,
+            orchestrator_attempt=orchestrator_attempt,
             # print_logs removed from ARCTester instantiation
         )
         logger.debug(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
@@ -394,6 +412,13 @@ async def run_single_test_wrapper(config_name: str, task_id: str, limiter: Reque
 
     except TaskTimeoutError as e:
         circuit_breaker.record_failure(e)
+        if raw_api_logger is not None:
+            raw_api_logger.record_task_timeout(
+                task_id=task_id,
+                config=config_name,
+                elapsed=e.elapsed,
+                timeout=e.timeout,
+            )
         logger.error(f"[Orchestrator] Task {task_id} ({config_name}) timed out after {e.elapsed:.2f}s (limit: {e.timeout}s)")
         return False
 
@@ -418,8 +443,15 @@ async def main(task_list_file: Optional[str],
                max_tasks_per_run: Optional[int] = None,
                max_concurrency: Optional[int] = None) -> int:
     start_time = time.perf_counter()
+    raw_api_logger = RawAPILogger()
     logger.info("Starting ARC Test Orchestrator...")
     logger.info(f"Testing with model configuration: {config_to_test}")
+    logger.info(
+        "Raw API events will be appended to per-task application logs in %s "
+        "(run_id=%s)",
+        logs_base_dir,
+        raw_api_logger.run_id,
+    )
     if max_task_timeout:
         logger.info(f"Task timeout: {max_task_timeout}s (CLI override)")
     if circuit_breaker_threshold:
@@ -545,6 +577,7 @@ async def main(task_list_file: Optional[str],
                 num_attempts, retry_attempts,
                 logs_base_dir,
                 concurrency_limiter,
+                raw_api_logger,
             ))
         except ValueError as e: # Specific error for model config issues
             logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
@@ -648,13 +681,6 @@ if __name__ == "__main__":
         help=f"Number of internal retry attempts by ARCTester for failed predictions. Defaults to {DEFAULT_RETRY_ATTEMPTS}"
     )
     parser.add_argument(
-        "--log-level", 
-        type=str, 
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NONE"],
-        help="Set the logging level for the orchestrator and ARCTester (default: INFO). Use NONE to disable logging."
-    )
-    parser.add_argument(
         "--enable-metrics",
         action="store_true", # Defaults to False if not present
         help="Enable metrics collection and dumping (disabled by default)."
@@ -663,7 +689,10 @@ if __name__ == "__main__":
         "--logs-base-dir",
         type=str,
         default="logs",
-        help="Base directory for JSONL logs. Per-task logs go to <base>/<config>/<task_id>/openai.jsonl (default: logs)."
+        help=(
+            "Base directory for combined application and raw API JSONL logs. "
+            "Per-task logs go to <base>/<task_id>.jsonl (default: logs)."
+        ),
     )
     parser.add_argument(
         "--skip-preflight",
@@ -737,7 +766,7 @@ if __name__ == "__main__":
     set_metrics_enabled(args.enable_metrics)
 
     # Configure structured logging for the entire application
-    setup_logging(level=args.log_level, quiet_libraries=True)
+    setup_logging(level="INFO", quiet_libraries=True)
 
     config_name = args.config.strip() if args.config else DEFAULT_MODEL_CONFIG
     if not config_name:

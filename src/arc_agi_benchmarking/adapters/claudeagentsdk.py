@@ -78,6 +78,13 @@ This iterative approach will help you solve the puzzle more accurately.
             lambda: asyncio.run(
                 self._make_prediction_async(prompt, task_id, test_id, pair_index)
             ),
+            _raw_log_request={
+                "prompt": prompt,
+                "model": self.model_config.model_name,
+                "task_id": task_id,
+                "test_id": test_id,
+                "pair_index": pair_index,
+            },
         )
 
     async def _make_prediction_async(self, prompt: str, task_id: Optional[str] = None, test_id: Optional[str] = None, pair_index: int = None) -> Attempt:

@@ -7,9 +7,14 @@ Supports both console and file output with configurable formats.
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+import time
+import uuid
+from contextlib import suppress
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import date, datetime, timezone
+from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 # Standard fields included in all log records
 STANDARD_FIELDS = [
@@ -31,6 +36,205 @@ CONTEXT_FIELDS = [
     "error_type",
 ]
 
+def serialize_for_raw_log(value: Any, *, _seen: Optional[set[int]] = None) -> Any:
+    """Convert SDK values to JSON-safe data."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return serialize_for_raw_log(value.value, _seen=_seen)
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, bytes):
+        return {"type": "bytes", "length": len(value)}
+
+    seen = _seen if _seen is not None else set()
+    value_id = id(value)
+    if value_id in seen:
+        return {"type": type(value).__name__, "value": "[CIRCULAR]"}
+
+    if isinstance(value, Mapping):
+        seen.add(value_id)
+        try:
+            return {
+                str(key): serialize_for_raw_log(item, _seen=seen)
+                for key, item in value.items()
+            }
+        finally:
+            seen.remove(value_id)
+
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        seen.add(value_id)
+        try:
+            return [serialize_for_raw_log(item, _seen=seen) for item in value]
+        finally:
+            seen.remove(value_id)
+
+    converted: Any = None
+    if hasattr(value, "model_dump"):
+        with suppress(Exception):
+            converted = value.model_dump(mode="json")
+    if converted is None and hasattr(value, "to_dict"):
+        with suppress(Exception):
+            converted = value.to_dict()
+    if converted is None and is_dataclass(value) and not isinstance(value, type):
+        with suppress(Exception):
+            converted = asdict(value)
+    if converted is None and hasattr(value, "dict"):
+        with suppress(Exception):
+            converted = value.dict()
+    if converted is None and hasattr(value, "__dict__"):
+        with suppress(Exception):
+            converted = {
+                key: item
+                for key, item in vars(value).items()
+                if not key.startswith("_") and not callable(item)
+            }
+    if converted is not None:
+        seen.add(value_id)
+        try:
+            return serialize_for_raw_log(converted, _seen=seen)
+        finally:
+            seen.remove(value_id)
+
+    with suppress(Exception):
+        return {
+            "type": f"{type(value).__module__}.{type(value).__qualname__}",
+            "repr": repr(value),
+        }
+    return {"type": type(value).__name__, "repr": "[UNAVAILABLE]"}
+
+
+@dataclass(frozen=True)
+class RawAPIRequestHandle:
+    started_monotonic: float
+    context: dict[str, Any]
+    operation: str
+
+
+class RawAPILogger:
+    """Emit correlated API lifecycle events through the existing logger."""
+
+    schema_version = 1
+
+    def __init__(
+        self,
+        run_id: Optional[str] = None,
+        event_logger: Optional[logging.Logger] = None,
+    ):
+        self.run_id = run_id or str(uuid.uuid4())
+        self.logger = event_logger or logging.getLogger(
+            "arc_agi_benchmarking.raw_api"
+        )
+
+    def start_request(
+        self,
+        operation: str,
+        args: Sequence[Any],
+        kwargs: Mapping[str, Any],
+        context: Mapping[str, Any],
+        request_payload: Any = None,
+    ) -> RawAPIRequestHandle:
+        timestamp = datetime.now(timezone.utc)
+        handle = RawAPIRequestHandle(
+            started_monotonic=time.monotonic(),
+            context=serialize_for_raw_log(dict(context)),
+            operation=operation,
+        )
+        payload = (
+            request_payload
+            if request_payload is not None
+            else {"args": list(args), "kwargs": dict(kwargs)}
+        )
+        self._emit(
+            {
+                **self._base_event(handle, "request_started", timestamp),
+                "request": serialize_for_raw_log(payload),
+            }
+        )
+        return handle
+
+    def record_success(self, handle: RawAPIRequestHandle, response: Any) -> None:
+        self._emit(
+            {
+                **self._base_event(
+                    handle,
+                    "request_succeeded",
+                    datetime.now(timezone.utc),
+                ),
+                "duration_ms": self._duration_ms(handle),
+                "response": serialize_for_raw_log(response),
+            }
+        )
+
+    def record_failure(self, handle: RawAPIRequestHandle, error: BaseException) -> None:
+        error_data: dict[str, Any] = {
+            "type": f"{type(error).__module__}.{type(error).__qualname__}",
+            "message": str(error),
+        }
+        for attr in ("status_code", "request_id", "body", "response"):
+            value = getattr(error, attr, None)
+            if value is not None:
+                error_data[attr] = serialize_for_raw_log(value)
+        self._emit(
+            {
+                **self._base_event(
+                    handle,
+                    "request_failed",
+                    datetime.now(timezone.utc),
+                ),
+                "duration_ms": self._duration_ms(handle),
+                "error": serialize_for_raw_log(error_data),
+            }
+        )
+
+    def record_task_timeout(
+        self,
+        *,
+        task_id: str,
+        config: str,
+        elapsed: Optional[float],
+        timeout: Optional[float],
+    ) -> None:
+        self._emit(
+            {
+                "schema_version": self.schema_version,
+                "event": "task_timed_out",
+                "run_id": self.run_id,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "context": {"task_id": task_id, "config": config},
+                "elapsed_seconds": elapsed,
+                "timeout_seconds": timeout,
+            }
+        )
+
+    def _base_event(
+        self,
+        handle: RawAPIRequestHandle,
+        event: str,
+        timestamp: datetime,
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "event": event,
+            "run_id": self.run_id,
+            "timestamp": timestamp.isoformat(),
+            "operation": handle.operation,
+            "context": handle.context,
+        }
+
+    def _duration_ms(self, handle: RawAPIRequestHandle) -> float:
+        return round((time.monotonic() - handle.started_monotonic) * 1000, 3)
+
+    def _emit(self, event: Mapping[str, Any]) -> None:
+        self.logger.info(event["event"], extra={"raw_api_event": dict(event)})
+
+
+class _ExcludeRawAPIEvents(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not hasattr(record, "raw_api_event")
+
 
 class StructuredFormatter(logging.Formatter):
     """JSON formatter for structured logging.
@@ -50,6 +254,10 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Format a log record as JSON."""
+        raw_api_event = getattr(record, "raw_api_event", None)
+        if raw_api_event is not None:
+            return json.dumps(raw_api_event, default=str)
+
         log_data: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
@@ -152,6 +360,7 @@ def setup_logging(
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(numeric_level)
+    console_handler.addFilter(_ExcludeRawAPIEvents())
 
     if json_console:
         console_handler.setFormatter(StructuredFormatter())
