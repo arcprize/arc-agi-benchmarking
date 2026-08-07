@@ -130,6 +130,7 @@ class AttemptMetadata(BaseModel):
     end_timestamp: datetime
     choices: List[Choice]
     reasoning_summary: Optional[str] = None
+    reasoning_content: Optional[str] = None
     kwargs: Dict[str, Any]
     usage: Usage
     cost: Cost

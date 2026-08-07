@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 import inspect # Added for subclass discovery
 import sys # Added for subclass discovery
+from types import SimpleNamespace
 
 from arc_agi_benchmarking.adapters.openai_base import OpenAIBaseAdapter, _filter_api_kwargs
 from arc_agi_benchmarking.adapters.open_ai import OpenAIAdapter
@@ -214,6 +215,24 @@ class TestOpenAIBaseProviderLogic:
         # IMPORTANT: _get_usage itself infers reasoning here when rt_explicit=0 and pt+ct < tt
         assert usage.completion_tokens_details.reasoning_tokens == 20 # inferred rt
 
+    def test_get_reasoning_content(self, adapter_instance):
+        response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(reasoning_content="Full reasoning content")
+                )
+            ]
+        )
+
+        assert adapter_instance._get_reasoning_content(response) == "Full reasoning content"
+
+    def test_get_reasoning_content_returns_none_when_not_set(self, adapter_instance):
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace())]
+        )
+
+        assert adapter_instance._get_reasoning_content(response) is None
+
     # --- Test _calculate_cost for different cases ---
     def test_calculate_cost_case_a_no_reasoning(self, adapter_instance, mock_response_case_a_no_reasoning):
         """Test cost calculation for Case A (pt+ct=tt), no explicit reasoning."""
@@ -298,7 +317,8 @@ class TestOpenAIBaseProviderLogic:
         with patch.object(adapter_class, '_call_ai_model') as mock_call_ai, \
              patch.object(adapter_class, '_get_content', return_value='[[1]]') as mock_get_content, \
              patch.object(adapter_class, '_get_role', return_value="assistant") as mock_get_role, \
-             patch.object(adapter_class, '_get_reasoning_summary', return_value="Reasoning summary") as mock_get_reasoning_summary:
+             patch.object(adapter_class, '_get_reasoning_summary', return_value="Reasoning summary") as mock_get_reasoning_summary, \
+             patch.object(adapter_class, '_get_reasoning_content', return_value="Full reasoning content") as mock_get_reasoning_content:
 
             mock_call_ai.return_value = mock_response_case_a_no_reasoning # Use the Case A fixture
             
@@ -317,6 +337,7 @@ class TestOpenAIBaseProviderLogic:
             assert attempt.metadata.usage.completion_tokens == 200 # raw ct
             assert attempt.metadata.usage.total_tokens == 300
             assert attempt.metadata.usage.completion_tokens_details.reasoning_tokens == 0 # rt_explicit
+            assert attempt.metadata.reasoning_content == "Full reasoning content"
             
             # Verify cost calculation based on Case A (no reasoning) logic
             # ct_for_cost = 200, rt_for_cost = 0

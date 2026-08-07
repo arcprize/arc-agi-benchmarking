@@ -81,6 +81,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
         cost = self._calculate_cost(response)
         usage = self._get_usage(response)
         reasoning_summary = self._get_reasoning_summary(response)
+        reasoning_content = self._get_reasoning_content(response)
 
         # Convert input messages to choices
         input_choices = [Choice(index=0, message=Message(role="user", content=prompt))]
@@ -104,6 +105,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             end_timestamp=end_time,
             choices=all_choices,
             reasoning_summary=reasoning_summary,
+            reasoning_content=reasoning_content,
             kwargs=self.model_config.kwargs,
             usage=usage,
             cost=cost,
@@ -545,6 +547,19 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
                 )  # Will be None if not present
         # Chat Completions API does not currently provide a separate summary field
         return reasoning_summary
+
+    def _get_reasoning_content(self, response: Any) -> Optional[str]:
+        """Extract reasoning content from a Chat Completions response."""
+        if self.model_config.api_type != APIType.CHAT_COMPLETIONS:
+            return None
+
+        choices = getattr(response, "choices", None)
+        if not choices:
+            return None
+
+        message = getattr(choices[0], "message", None)
+        reasoning_content = getattr(message, "reasoning_content", None)
+        return reasoning_content if isinstance(reasoning_content, str) else None
 
     def _get_content(self, response: Any) -> str:
         """
