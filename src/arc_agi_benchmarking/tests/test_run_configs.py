@@ -1,13 +1,16 @@
 import argparse
 import asyncio
+import sys
+from dataclasses import replace
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from cli import run_all, run_configs
 from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
+from cli import run_all, run_configs
 
 
 @pytest.fixture(autouse=True)
@@ -385,7 +388,13 @@ def test_named_datasets_reject_forwarded_data_dir():
 
 
 class FakeProcess:
-    def __init__(self, release: asyncio.Event, returncode: int = 0):
+    def __init__(
+        self,
+        release: asyncio.Event,
+        returncode: int = 0,
+        stdout: bytes = b"",
+        stderr: bytes = b"",
+    ):
         self._release = release
         self._planned_returncode = returncode
         self.returncode = None
@@ -393,6 +402,8 @@ class FakeProcess:
         self.killed = False
         self.stdout = asyncio.StreamReader()
         self.stderr = asyncio.StreamReader()
+        self.stdout.feed_data(stdout)
+        self.stderr.feed_data(stderr)
         self.stdout.feed_eof()
         self.stderr.feed_eof()
 
@@ -485,6 +496,65 @@ async def test_cancelling_config_terminates_its_process():
 
     with pytest.raises(asyncio.CancelledError):
         await task
+
+    assert process.terminated is True
+    assert process.returncode == -15
+
+
+@pytest.mark.asyncio
+async def test_config_drains_oversized_stdout_and_stderr_lines():
+    line_size = asyncio.streams._DEFAULT_LIMIT * 3
+    script = (
+        "import sys; "
+        f"sys.stdout.write('x' * {line_size} + '\\n'); "
+        f"sys.stderr.write('y' * {line_size} + '\\n')"
+    )
+    run = replace(
+        make_run("xai-high"),
+        command=(sys.executable, "-c", script),
+    )
+    stdout = StringIO()
+    stderr = StringIO()
+
+    with (
+        patch.object(run_configs.sys, "stdout", stdout),
+        patch.object(run_configs.sys, "stderr", stderr),
+    ):
+        result = await asyncio.wait_for(run_configs.run_config(run), timeout=5)
+
+    prefix = "[xai-high/v2] "
+    assert result.returncode == 0
+    assert stdout.getvalue().startswith(prefix)
+    assert stdout.getvalue().removeprefix(prefix) == "x" * line_size + "\n"
+    assert stderr.getvalue().startswith(prefix)
+    assert stderr.getvalue().removeprefix(prefix) == "y" * line_size + "\n"
+
+
+@pytest.mark.asyncio
+async def test_output_failure_terminates_child_process():
+    class BrokenWriter:
+        def write(self, _text):
+            raise OSError("destination closed")
+
+        def flush(self):
+            pass
+
+    release = asyncio.Event()
+    process = FakeProcess(release, stdout=b"trigger\n")
+
+    async def process_factory(*command, **kwargs):
+        return process
+
+    with (
+        patch.object(run_configs.sys, "stdout", BrokenWriter()),
+        pytest.raises(OSError, match="destination closed"),
+    ):
+        await asyncio.wait_for(
+            run_configs.run_config(
+                make_run("xai-high"), process_factory=process_factory
+            ),
+            timeout=1,
+        )
 
     assert process.terminated is True
     assert process.returncode == -15

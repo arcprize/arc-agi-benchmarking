@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import codecs
+import sys
 from collections import Counter
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import sys
-from typing import Awaitable, Callable, Sequence, TextIO
+from typing import TextIO
 
 from arc_agi_benchmarking.utils.task_utils import read_models_config
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RUN_ALL_PATH = PROJECT_ROOT / "cli" / "run_all.py"
+STREAM_READ_SIZE = 64 * 1024
 
 
 @dataclass(frozen=True)
@@ -278,9 +280,33 @@ async def _prefix_stream(
     config: str,
     destination: TextIO,
 ) -> None:
-    while line := await stream.readline():
-        text = line.decode(errors="replace")
-        print(f"[{config}] {text}", end="", file=destination, flush=True)
+    """Drain output without StreamReader's 64 KiB logical-line limit."""
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    at_line_start = True
+
+    def write_text(text: str) -> None:
+        nonlocal at_line_start
+        position = 0
+        while position < len(text):
+            if at_line_start:
+                destination.write(f"[{config}] ")
+                at_line_start = False
+
+            newline = text.find("\n", position)
+            if newline == -1:
+                destination.write(text[position:])
+                break
+
+            destination.write(text[position : newline + 1])
+            at_line_start = True
+            position = newline + 1
+
+        destination.flush()
+
+    while chunk := await stream.read(STREAM_READ_SIZE):
+        write_text(decoder.decode(chunk))
+
+    write_text(decoder.decode(b"", final=True))
 
 
 async def _stop_process(process: asyncio.subprocess.Process) -> None:
@@ -317,19 +343,19 @@ async def run_config(
         asyncio.create_task(_prefix_stream(process.stdout, label, sys.stdout)),
         asyncio.create_task(_prefix_stream(process.stderr, label, sys.stderr)),
     ]
+    wait_task = asyncio.create_task(process.wait())
     try:
-        returncode = await process.wait()
-        await asyncio.gather(*output_tasks)
+        returncode, *_ = await asyncio.gather(wait_task, *output_tasks)
         return ConfigResult(
             config=run.config,
             dataset=run.dataset,
             returncode=returncode,
         )
-    except asyncio.CancelledError:
+    except BaseException:
         await _stop_process(process)
-        for task in output_tasks:
+        for task in (wait_task, *output_tasks):
             task.cancel()
-        await asyncio.gather(*output_tasks, return_exceptions=True)
+        await asyncio.gather(wait_task, *output_tasks, return_exceptions=True)
         raise
 
 
