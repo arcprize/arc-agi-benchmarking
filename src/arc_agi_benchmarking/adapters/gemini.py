@@ -1,5 +1,7 @@
 from .provider import ProviderAdapter
 import json
+import copy
+from types import SimpleNamespace
 from google import genai
 from google.genai import types
 from typing import List, Optional
@@ -18,7 +20,19 @@ class _StreamResponse:
 class GeminiAdapter(ProviderAdapter):
     def init_client(self):
         """Initialize the Gemini client."""
-        self.generation_config_dict = self.model_config.kwargs
+        self.generation_config_dict = self.model_config.kwargs.copy()
+        self.continuation_enabled = self.generation_config_dict.pop('continuation', False)
+        if self.continuation_enabled:
+            if self.generation_config_dict.get('stream'):
+                raise ValueError("Gemini continuation requires non-streaming requests")
+            budget = self.generation_config_dict.get('max_output_tokens')
+            if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
+                raise ValueError("Gemini continuation requires an explicit positive max_output_tokens")
+            self.generation_config_dict.pop('stream', None)
+            logger.warning(
+                "Gemini continuation enabled; configured prices may be placeholders. "
+                "Failed predictions can be restarted by the benchmark retry policy."
+            )
         
         client = genai.Client(
             api_key=self.get_api_key(),
@@ -164,6 +178,8 @@ class GeminiAdapter(ProviderAdapter):
                 pass
 
         config_params = self.generation_config_dict.copy()
+        if getattr(self, 'continuation_enabled', False):
+            return self._generate_with_continuation(contents_list, config_params)
 
         try:
             response = self._request(
@@ -179,6 +195,73 @@ class GeminiAdapter(ProviderAdapter):
             if hasattr(e, 'response') and e.response:
                  logger.error(f"API Error details: {e.response}")
             return None
+
+    def _generate_with_continuation(self, contents, config_params):
+        """Follow decode slices, preserving raw candidate fields the SDK drops.
+
+        Keep the original cumulative budget on every request. Replay raw parts
+        through extra_body so SDK conversion cannot discard opaque part fields.
+        Each slice is independently rate limited and recorded by _request.
+        """
+        config_params = copy.deepcopy(config_params)
+        config_params['should_return_http_response'] = True
+        http_options = config_params.setdefault('http_options', {})
+        http_options.setdefault('timeout', 3_600_000)
+        extra_body = http_options.setdefault('extra_body', {})
+        if 'continuationToken' in extra_body or 'contents' in extra_body:
+            raise ValueError("Continuation manages continuationToken and contents")
+        base_contents = [c.model_dump(mode='json', by_alias=True, exclude_none=True) for c in contents]
+        parts = []
+        prompt_tokens = output_tokens = thought_tokens = 0
+        seen_tokens = set()
+        while True:
+            def generate_slice(**kwargs):
+                response = self.client.models.generate_content(**kwargs)
+                # Returning the decoded raw body also makes raw API logs useful.
+                return json.loads(response.sdk_http_response.body)
+
+            response = self._request(
+                "models.generate_content.continuation",
+                generate_slice,
+                model=self.model_config.model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(**config_params),
+            )
+            candidates = response.get('candidates') or []
+            if not candidates:
+                raise ValueError("Gemini continuation response has no candidates")
+            candidate = candidates[0]
+            parts.extend((candidate.get('content') or {}).get('parts') or [])
+            usage = response.get('usageMetadata') or {}
+            prompt_tokens += usage.get('promptTokenCount') or 0
+            output_tokens += usage.get('candidatesTokenCount') or 0
+            thought_tokens += usage.get('thoughtsTokenCount') or 0
+            finish_reason = candidate.get('finishReason')
+            if finish_reason == 'CONTINUATION':
+                token = candidate.get('continuationToken')
+                if not isinstance(token, str) or not token:
+                    raise ValueError("Gemini CONTINUATION response has no continuation token")
+                if token in seen_tokens:
+                    raise ValueError("Gemini returned a repeated continuation token")
+                seen_tokens.add(token)
+                extra_body['continuationToken'] = token
+                extra_body['contents'] = base_contents + [{'role': 'model', 'parts': copy.deepcopy(parts)}]
+                continue
+            if finish_reason not in ('STOP', 'MAX_TOKENS'):
+                raise ValueError(f"Unexpected Gemini finish reason: {finish_reason}")
+            if finish_reason == 'MAX_TOKENS':
+                logger.warning("Gemini exhausted its cumulative output budget")
+            return SimpleNamespace(
+                text=''.join(p['text'] for p in parts if isinstance(p.get('text'), str) and not p.get('thought')),
+                parts=parts,
+                finish_reason=finish_reason,
+                usage_metadata=SimpleNamespace(
+                    prompt_token_count=prompt_tokens,
+                    candidates_token_count=output_tokens,
+                    thoughts_token_count=thought_tokens,
+                    total_token_count=prompt_tokens + output_tokens + thought_tokens,
+                ),
+            )
 
     def chat_completion_stream(self, messages: list):
         """
@@ -263,6 +346,15 @@ class GeminiAdapter(ProviderAdapter):
             return None
 
     def extract_json_from_response(self, input_response: str) -> Optional[List[List[int]]]:
+        if getattr(self, 'continuation_enabled', False):
+            # Do not spend another long decode just to extract the final grid.
+            from arc_agi_benchmarking.utils.parsing import parse_and_validate_json
+            try:
+                return parse_and_validate_json(input_response)
+            except ValueError:
+                logger.error("Could not parse the final Gemini continuation answer locally")
+                return None
+
         prompt = f"""
         Extract only the JSON of the test output from the following response.
         Remove any markdown code blocks and return only valid JSON.
