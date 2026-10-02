@@ -21,19 +21,8 @@ class GeminiAdapter(ProviderAdapter):
     def init_client(self):
         """Initialize the Gemini client."""
         self.generation_config_dict = self.model_config.kwargs.copy()
-        self.continuation_enabled = self.generation_config_dict.pop('continuation', False)
-        if self.continuation_enabled:
-            if self.generation_config_dict.get('stream'):
-                raise ValueError("Gemini continuation requires non-streaming requests")
-            budget = self.generation_config_dict.get('max_output_tokens')
-            if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
-                raise ValueError("Gemini continuation requires an explicit positive max_output_tokens")
-            self.generation_config_dict.pop('stream', None)
-            logger.warning(
-                "Gemini continuation enabled; configured prices may be placeholders. "
-                "Failed predictions can be restarted by the benchmark retry policy."
-            )
-        
+        # Ignore the former enable flag in configurations created before automatic handling.
+        self.generation_config_dict.pop("continuation", None)
         client = genai.Client(
             api_key=self.get_api_key(),
             http_options=types.HttpOptions(
@@ -177,24 +166,8 @@ class GeminiAdapter(ProviderAdapter):
                 # `pass` ensures these are not added to `contents_list` at this stage.
                 pass
 
-        config_params = self.generation_config_dict.copy()
-        if getattr(self, 'continuation_enabled', False):
-            return self._generate_with_continuation(contents_list, config_params)
-
-        try:
-            response = self._request(
-                "models.generate_content",
-                self.client.models.generate_content,
-                model=self.model_config.model_name,
-                contents=contents_list,
-                config=types.GenerateContentConfig(**config_params),
-            )
-            return response
-        except Exception as e:
-            logger.error(f"Error in chat_completion with google.genai: {e}")
-            if hasattr(e, 'response') and e.response:
-                 logger.error(f"API Error details: {e.response}")
-            return None
+        config_params = {k: v for k, v in self.generation_config_dict.items() if k != 'stream'}
+        return self._generate_with_continuation(contents_list, config_params)
 
     def _generate_with_continuation(self, contents, config_params):
         """Follow decode slices, preserving raw candidate fields the SDK drops.
@@ -238,6 +211,9 @@ class GeminiAdapter(ProviderAdapter):
             thought_tokens += usage.get('thoughtsTokenCount') or 0
             finish_reason = candidate.get('finishReason')
             if finish_reason == 'CONTINUATION':
+                budget = config_params.get('max_output_tokens')
+                if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
+                    raise ValueError('Gemini returned CONTINUATION without an explicit positive max_output_tokens budget')
                 token = candidate.get('continuationToken')
                 if not isinstance(token, str) or not token:
                     raise ValueError("Gemini CONTINUATION response has no continuation token")
@@ -346,59 +322,10 @@ class GeminiAdapter(ProviderAdapter):
             return None
 
     def extract_json_from_response(self, input_response: str) -> Optional[List[List[int]]]:
-        if getattr(self, 'continuation_enabled', False):
-            # Do not spend another long decode just to extract the final grid.
-            from arc_agi_benchmarking.utils.parsing import parse_and_validate_json
-            try:
-                return parse_and_validate_json(input_response)
-            except ValueError:
-                logger.error("Could not parse the final Gemini continuation answer locally")
-                return None
-
-        prompt = f"""
-        Extract only the JSON of the test output from the following response.
-        Remove any markdown code blocks and return only valid JSON.
-
-        Response:
-        {input_response}
-
-        The JSON should be in this format:
-        {{
-            "response": [
-                [1, 2, 3],
-                [4, 5, 6]
-            ]
-        }}
-        """
-        
-        # Filter config for extraction, using common generation parameters.
-        # System instructions are generally not needed for this type of extraction.
-        extract_config_params = {
-            k: v for k, v in self.generation_config_dict.items() 
-            if k in ['temperature', 'top_p', 'top_k', 'max_output_tokens', 'stop_sequences']
-        }
-
+        # Parse locally to avoid an additional generation solely for extraction.
+        from arc_agi_benchmarking.utils.parsing import parse_and_validate_json
         try:
-            response = self._request(
-                "models.generate_content.extract_json",
-                self.client.models.generate_content,
-                model=self.model_config.model_name,
-                contents=prompt, 
-                config=types.GenerateContentConfig(**extract_config_params) if extract_config_params else None
-            )
-            content = response.text.strip()
-
-            if content.startswith("```json"):
-                content = content[7:].strip()
-            if content.endswith("```"):
-                content = content[:-3].strip()
-
-            try:
-                json_data = json.loads(content)
-                return json_data.get("response")
-            except json.JSONDecodeError:
-                logger.error(f"Failed to decode JSON from extraction response: {content}")
-                return None
-        except Exception as e:
-            logger.error(f"Error in extract_json_from_response with google.genai: {e}")
+            return parse_and_validate_json(input_response)
+        except ValueError:
+            logger.error("Could not parse the final Gemini answer locally")
             return None

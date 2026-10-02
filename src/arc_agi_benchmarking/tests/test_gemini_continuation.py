@@ -44,7 +44,7 @@ def adapter_factory(monkeypatch):
         config = ModelConfig(
             name="test-continuation", model_name="models/test-model", provider="gemini",
             api_key_env="TEST_GEMINI_KEY", pricing=ModelPricing(date="2026-09-29", input=2, output=4),
-            kwargs={"continuation": True, "max_output_tokens": 1000000,
+            kwargs={"max_output_tokens": 1000000,
                     "http_options": {"timeout": 3600000}, **overrides},
         )
         with patch("arc_agi_benchmarking.adapters.provider.read_models_config", return_value=config), patch(
@@ -134,14 +134,31 @@ def test_http_failure_after_slice_is_logged_and_propagated(adapter_factory):
     assert adapter.raw_api_logger.record_failure.call_count == 1
 
 
-@pytest.mark.parametrize('options', [{'stream': True}, {'max_output_tokens': None}, {'max_output_tokens': 0}])
-def test_invalid_config_rejected_before_request(adapter_factory, options):
-    with pytest.raises(ValueError):
-        adapter_factory([], **options)
+@pytest.mark.parametrize('budget', [None, 0])
+def test_continuation_requires_explicit_budget(adapter_factory, budget):
+    adapter, requests = adapter_factory([slice_response('CONTINUATION', token='token')], max_output_tokens=budget)
+    with pytest.raises(ValueError, match='explicit positive'):
+        adapter.chat_completion([{'role': 'user', 'content': 'test'}])
+    assert len(requests) == 1
+
+
+def test_single_response_allows_default_budget(adapter_factory):
+    adapter, requests = adapter_factory([slice_response('STOP', [{'text': '[[3]]'}])], max_output_tokens=None)
+    assert adapter.make_prediction('test', pair_index=0).answer == [[3]]
+    assert len(requests) == 1
 
 
 def test_normal_gemini_path_unchanged(adapter_factory):
-    adapter, requests = adapter_factory([slice_response('STOP', [{"text": "[[3]]"}])], continuation=False)
+    adapter, requests = adapter_factory([slice_response('STOP', [{"text": "[[3]]"}])])
     assert adapter.make_prediction('test', pair_index=0).answer == [[3]]
     assert len(requests) == 1
     assert 'continuationToken' not in json.loads(requests[0].content)
+
+
+def test_legacy_false_flag_does_not_disable_continuation(adapter_factory):
+    adapter, requests = adapter_factory([
+        slice_response('CONTINUATION', token='token'),
+        slice_response('STOP', [{'text': '[[1]]'}]),
+    ], continuation=False)
+    assert adapter.make_prediction('test', pair_index=0).answer == [[1]]
+    assert len(requests) == 2
