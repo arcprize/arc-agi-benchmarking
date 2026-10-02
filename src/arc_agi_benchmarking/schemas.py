@@ -276,6 +276,12 @@ class ModelConfig(BaseModel):
         'extra': 'allow'
     }
     
+    @field_validator('provider')
+    @classmethod
+    def normalize_provider_alias(cls, value: str) -> str:
+        # Keep one provider identity for shared limits, timeouts, and launchers.
+        return 'gemini' if value == 'google' else value
+
     @model_validator(mode='before')
     @classmethod
     def extract_kwargs(cls, values: Dict[str, Any]) -> Dict[str, Any]:

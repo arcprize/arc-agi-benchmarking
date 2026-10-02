@@ -40,6 +40,7 @@ PROVIDER_ADAPTERS = {
     "openai": OpenAIAdapter,
     "deepseek": DeepseekAdapter,
     "gemini": GeminiAdapter,
+    "google": GeminiAdapter,
     "huggingfacefireworks": HuggingFaceFireworksAdapter,
     "fireworks": FireworksAdapter,
     "grok": GrokAdapter,
