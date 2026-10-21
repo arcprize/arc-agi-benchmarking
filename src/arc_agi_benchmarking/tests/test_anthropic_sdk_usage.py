@@ -1,10 +1,9 @@
-"""Exercise real SDK parsing, including usage omitted by its stream accumulator."""
+"""Verify SDK usage survives streaming, normalization, and serialization."""
 
 import json
 from unittest.mock import Mock
 
 import anthropic
-from anthropic.lib.streaming import BetaMessageStream, MessageStream
 import httpx
 import pytest
 
@@ -88,7 +87,7 @@ def _predict(handler, streaming, beta):
             "stream": streaming,
             "max_tokens": 1024,
             "pricing": {"date": "2026-10-21", "input": 5.0, "output": 25.0},
-            **({"betas": ["thinking-token-count-2026-05-13"]} if beta else {}),
+            **({"betas": ["context-management-2025-06-27"]} if beta else {}),
         }
     )
     with anthropic.Anthropic(
@@ -135,9 +134,9 @@ def test_sdk_usage_reaches_saved_attempt_and_raw_log(streaming, beta, thinking_t
     def handler(request):
         assert json.loads(request.content).get("stream", False) == streaming
         if beta:
-            assert (
-                "thinking-token-count-2026-05-13" in request.headers["anthropic-beta"]
-            )
+            assert "context-management-2025-06-27" in request.headers["anthropic-beta"]
+        else:
+            assert "anthropic-beta" not in request.headers
         if streaming:
             return _stream_response([usage])
         return httpx.Response(200, json=_message(usage))
@@ -168,10 +167,10 @@ def test_sdk_usage_reaches_saved_attempt_and_raw_log(streaming, beta, thinking_t
 
 
 @pytest.mark.parametrize("beta", [False, True])
-def test_sdk_keeps_thinking_from_partial_deltas_with_final_totals(beta):
+def test_sdk_keeps_thinking_when_later_delta_omits_breakdown(beta):
     deltas = [
         {"output_tokens": 150, "output_tokens_details": {"thinking_tokens": 100}},
-        {"output_tokens": 200, "output_tokens_details": {"thinking_tokens": None}},
+        {"output_tokens": 200},
     ]
     attempt, raw_response = _predict(
         lambda request: _stream_response(deltas), True, beta
@@ -184,45 +183,3 @@ def test_sdk_keeps_thinking_from_partial_deltas_with_final_totals(beta):
     assert usage["prompt_tokens_details"]["cache_creation_tokens"] == 12
     assert usage["prompt_tokens_details"]["cache_read_tokens"] == 5
     assert raw_response["usage"]["output_tokens_details"]["thinking_tokens"] == 100
-
-
-@pytest.mark.parametrize("beta", [False, True])
-@pytest.mark.parametrize("final_thinking,expected", [(None, 100), (0, 0), (80, 80)])
-def test_stream_final_usage_is_authoritative_when_present(
-    monkeypatch, beta, final_thinking, expected
-):
-    # Simulate an SDK that preserves some or all final usage details. A missing
-    # nested count needs the stream fallback, but an explicit zero must win.
-    stream_class = BetaMessageStream if beta else MessageStream
-    original = stream_class.get_final_message
-
-    def get_final_message(stream):
-        message = original(stream)
-        return message.model_copy(
-            update={
-                "usage": message.usage.model_copy(
-                    update={
-                        "output_tokens": 250,
-                        "output_tokens_details": {
-                            "thinking_tokens": final_thinking,
-                            "text_tokens": 150,
-                        },
-                    }
-                ),
-            }
-        )
-
-    monkeypatch.setattr(stream_class, "get_final_message", get_final_message)
-    deltas = [{"output_tokens": 200, "output_tokens_details": {"thinking_tokens": 100}}]
-    attempt, raw_response = _predict(
-        lambda request: _stream_response(deltas), True, beta
-    )
-    usage = attempt["metadata"]["usage"]
-    assert usage["completion_tokens"] == 250
-    assert usage["total_tokens"] == 351
-    assert usage["completion_tokens_details"]["reasoning_tokens"] == expected
-    assert attempt["metadata"]["cost"]["total_cost"] == pytest.approx(0.006755)
-    assert raw_response["usage"]["output_tokens_details"] == {
-        "thinking_tokens": expected,
-        "text_tokens": 150,
-    }

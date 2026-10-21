@@ -197,22 +197,6 @@ class AnthropicAdapter(ProviderAdapter):
             return max(value, 0)
         return 0
 
-    @staticmethod
-    def _merge_stream_usage(primary: Any, fallback: dict) -> dict:
-        """Fill missing usage fields without replacing explicit values, including zero."""
-        merged = dict(fallback)
-        values = primary if isinstance(primary, dict) else primary.model_dump()
-        for key, value in values.items():
-            if value is None:
-                continue
-            if key == 'output_tokens_details':
-                value = {
-                    **merged.get(key, {}),
-                    **{name: count for name, count in value.items() if count is not None},
-                }
-            merged[key] = value
-        return merged
-
     def chat_completion(self, messages, tools=[]):
         """
         Make a raw API call to Anthropic and return the response
@@ -241,7 +225,7 @@ class AnthropicAdapter(ProviderAdapter):
     def chat_completion_stream(self, messages, tools=[]):
         """
         Make a streaming API call to Anthropic and return the final complete response.
-        Preserve usage details that the SDK may omit from the final message.
+        Only the final message is returned; intermediate deltas are ignored.
         """
         logger.debug(f"Starting streaming for Anthropic model: {self.model_config.model_name}")
 
@@ -262,6 +246,8 @@ class AnthropicAdapter(ProviderAdapter):
                     _raw_log_deferred=True,
                     **stream_kwargs
                 )
+                with stream_context as stream:
+                    final_message = stream.get_final_message()
             else:
                 stream_context = self._request(
                     "messages.stream",
@@ -272,22 +258,8 @@ class AnthropicAdapter(ProviderAdapter):
                     _raw_log_deferred=True,
                     **stream_kwargs
                 )
-            with stream_context as stream:
-                streamed_usage = {}
-                for event in stream:
-                    if event.type == 'message_delta':
-                        # Usage deltas are cumulative, so merge rather than add.
-                        streamed_usage = self._merge_stream_usage(event.usage, streamed_usage)
-                final_message = stream.get_final_message()
-
-            if streamed_usage:
-                # Older SDKs discard output_tokens_details while accumulating
-                # message_delta. Keep final totals authoritative and fill gaps
-                # before both raw logging and normalized usage extraction.
-                usage = self._merge_stream_usage(final_message.usage, streamed_usage)
-                final_message = final_message.model_copy(update={
-                    'usage': type(final_message.usage).model_validate(usage),
-                })
+                with stream_context as stream:
+                    final_message = stream.get_final_message()
 
             logger.debug(f"Streaming complete for message ID: {final_message.id}")
             logger.debug(f"Final message: {final_message}")
