@@ -1,5 +1,15 @@
 from .provider import ProviderAdapter
-from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from arc_agi_benchmarking.schemas import (
+    ARCTaskOutput,
+    AttemptMetadata,
+    Choice,
+    Message,
+    Usage,
+    Cost,
+    CompletionTokensDetails,
+    PromptTokensDetails,
+    Attempt,
+)
 import anthropic
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
@@ -95,6 +105,7 @@ class AnthropicAdapter(ProviderAdapter):
 
         # Thinking blocks from Anthropic
         reasoning_summary = self._get_reasoning_summary(response)
+        usage = self._build_usage(response)
 
         # Create metadata using our Pydantic models
         metadata = AttemptMetadata(
@@ -105,16 +116,7 @@ class AnthropicAdapter(ProviderAdapter):
             choices=all_choices,
             kwargs=self.model_config.kwargs,  # Use kwargs from model config
             reasoning_summary=reasoning_summary,
-            usage=Usage(
-                prompt_tokens=response.usage.input_tokens,
-                completion_tokens=response.usage.output_tokens,
-                total_tokens=response.usage.input_tokens + response.usage.output_tokens,
-                completion_tokens_details=CompletionTokensDetails(
-                    reasoning_tokens=0,  # Anthropic doesn't provide this breakdown
-                    accepted_prediction_tokens=response.usage.output_tokens,
-                    rejected_prediction_tokens=0  # Anthropic doesn't provide this
-                )
-            ),
+            usage=usage,
             cost=Cost(
                 prompt_cost=prompt_cost,
                 completion_cost=completion_cost,
@@ -138,6 +140,62 @@ class AnthropicAdapter(ProviderAdapter):
         )
 
         return attempt
+
+    def _build_usage(self, response: Any) -> Usage:
+        input_tokens = self._usage_int(response.usage, 'input_tokens')
+        output_tokens = self._usage_int(response.usage, 'output_tokens')
+        reasoning_tokens = self._anthropic_reasoning_tokens(response.usage, output_tokens)
+        cache_creation_tokens = self._anthropic_cache_creation_tokens(response.usage)
+        cache_read_tokens = self._usage_int(response.usage, 'cache_read_input_tokens')
+
+        return Usage(
+            prompt_tokens=input_tokens,
+            completion_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
+            prompt_tokens_details=PromptTokensDetails(
+                cache_creation_tokens=cache_creation_tokens,
+                cache_read_tokens=cache_read_tokens,
+            ),
+            completion_tokens_details=CompletionTokensDetails(
+                reasoning_tokens=reasoning_tokens,
+                accepted_prediction_tokens=output_tokens,
+                rejected_prediction_tokens=0,
+            ),
+        )
+
+    def _anthropic_reasoning_tokens(self, usage: Any, output_tokens: int) -> int:
+        output_details = self._usage_value(usage, 'output_tokens_details')
+        reasoning_tokens = self._usage_int(output_details, 'thinking_tokens')
+        if reasoning_tokens == 0:
+            # Older SDKs or SDK-normalized mocks may use the OpenAI-compatible name.
+            reasoning_tokens = self._usage_int(output_details, 'reasoning_tokens')
+        return min(reasoning_tokens, output_tokens)
+
+    def _anthropic_cache_creation_tokens(self, usage: Any) -> int:
+        cache_creation_tokens = self._usage_int(usage, 'cache_creation_input_tokens')
+        if cache_creation_tokens:
+            return cache_creation_tokens
+
+        cache_creation = self._usage_value(usage, 'cache_creation')
+        return (
+            self._usage_int(cache_creation, 'ephemeral_1h_input_tokens')
+            + self._usage_int(cache_creation, 'ephemeral_5m_input_tokens')
+        )
+
+    def _usage_value(self, obj: Any, key: str) -> Any:
+        if obj is None:
+            return None
+        if isinstance(obj, dict):
+            return obj.get(key)
+        return getattr(obj, key, None)
+
+    def _usage_int(self, obj: Any, key: str) -> int:
+        value = self._usage_value(obj, key)
+        if isinstance(value, bool):
+            return 0
+        if isinstance(value, int):
+            return max(value, 0)
+        return 0
 
     def chat_completion(self, messages, tools=[]):
         """

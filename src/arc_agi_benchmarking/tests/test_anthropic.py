@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import Mock, MagicMock, patch
+from types import SimpleNamespace
 from arc_agi_benchmarking.adapters.anthropic import AnthropicAdapter
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
 import os
@@ -69,6 +70,99 @@ def mock_anthropic_response():
     mock_response.usage.output_tokens = 25
 
     return mock_response
+
+
+def _anthropic_message_response(
+    input_tokens=39,
+    output_tokens=332,
+    output_tokens_details=None,
+    cache_creation_input_tokens=0,
+    cache_read_input_tokens=0,
+    cache_creation=None,
+):
+    thinking_block = SimpleNamespace(
+        type="thinking",
+        thinking="I should solve this carefully.",
+    )
+    text_block = SimpleNamespace(type="text", text="[[1, 2], [3, 4]]")
+    return SimpleNamespace(
+        id="msg_reasoning",
+        model="claude-sonnet-5-5",
+        role="assistant",
+        content=[thinking_block, text_block],
+        usage=SimpleNamespace(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            output_tokens_details=output_tokens_details,
+            cache_creation_input_tokens=cache_creation_input_tokens,
+            cache_read_input_tokens=cache_read_input_tokens,
+            cache_creation=cache_creation,
+        ),
+    )
+
+
+def test_make_prediction_preserves_anthropic_thinking_tokens(adapter_instance):
+    """Anthropic returns reasoning usage as output_tokens_details.thinking_tokens."""
+    response = _anthropic_message_response(
+        output_tokens_details=SimpleNamespace(thinking_tokens=324),
+        cache_creation_input_tokens=12,
+        cache_read_input_tokens=5,
+    )
+
+    with patch.object(adapter_instance, 'chat_completion', return_value=response):
+        attempt = adapter_instance.make_prediction("Solve this")
+
+    usage = attempt.metadata.usage
+    assert usage.prompt_tokens == 39
+    assert usage.completion_tokens == 332
+    assert usage.total_tokens == 371
+    assert usage.prompt_tokens_details.cache_creation_tokens == 12
+    assert usage.prompt_tokens_details.cache_read_tokens == 5
+    assert usage.completion_tokens_details.reasoning_tokens == 324
+    assert usage.completion_tokens_details.accepted_prediction_tokens == 332
+    assert usage.completion_tokens_details.rejected_prediction_tokens == 0
+    assert attempt.metadata.reasoning_summary == "I should solve this carefully."
+    assert attempt.answer == [[1, 2], [3, 4]]
+    assert attempt.metadata.cost.prompt_cost == pytest.approx(39 * 3.0 / 1_000_000)
+    assert attempt.metadata.cost.completion_cost == pytest.approx(332 * 15.0 / 1_000_000)
+    assert attempt.metadata.cost.total_cost == pytest.approx(
+        attempt.metadata.cost.prompt_cost + attempt.metadata.cost.completion_cost
+    )
+
+
+def test_make_prediction_supports_anthropic_usage_dicts(adapter_instance):
+    """Usage extraction should tolerate dict-like usage details from raw fixtures."""
+    response = _anthropic_message_response(
+        output_tokens=20,
+        output_tokens_details={"thinking_tokens": 7},
+        cache_creation_input_tokens=0,
+        cache_creation={
+            "ephemeral_1h_input_tokens": 11,
+            "ephemeral_5m_input_tokens": 13,
+        },
+    )
+
+    with patch.object(adapter_instance, 'chat_completion', return_value=response):
+        attempt = adapter_instance.make_prediction("Solve this")
+
+    usage = attempt.metadata.usage
+    assert usage.prompt_tokens_details.cache_creation_tokens == 24
+    assert usage.completion_tokens_details.reasoning_tokens == 7
+    assert usage.completion_tokens_details.accepted_prediction_tokens == 20
+
+
+def test_make_prediction_defaults_missing_anthropic_token_details(adapter_instance):
+    """Missing Anthropic token details are unknown/zero, not fabricated."""
+    response = _anthropic_message_response(output_tokens=25, output_tokens_details=None)
+
+    with patch.object(adapter_instance, 'chat_completion', return_value=response):
+        attempt = adapter_instance.make_prediction("Solve this")
+
+    usage = attempt.metadata.usage
+    assert usage.prompt_tokens_details.cache_creation_tokens == 0
+    assert usage.prompt_tokens_details.cache_read_tokens == 0
+    assert usage.completion_tokens_details.reasoning_tokens == 0
+    assert usage.completion_tokens_details.accepted_prediction_tokens == 25
 
 
 class TestAnthropicStreaming:
