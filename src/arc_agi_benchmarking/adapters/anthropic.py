@@ -286,7 +286,7 @@ class AnthropicAdapter(ProviderAdapter):
                 # before both raw logging and normalized usage extraction.
                 usage = self._merge_stream_usage(final_message.usage, streamed_usage)
                 final_message = final_message.model_copy(update={
-                    'usage': final_message.usage.model_copy(update=usage),
+                    'usage': type(final_message.usage).model_validate(usage),
                 })
 
             logger.debug(f"Streaming complete for message ID: {final_message.id}")

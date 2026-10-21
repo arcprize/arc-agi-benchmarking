@@ -12,6 +12,10 @@ from arc_agi_benchmarking.adapters.anthropic import AnthropicAdapter
 from arc_agi_benchmarking.schemas import ModelConfig
 from arc_agi_benchmarking.utils.logging_utils import RawAPILogger
 
+pytestmark = pytest.mark.filterwarnings(
+    "error:Pydantic serializer warnings:UserWarning"
+)
+
 
 def _message(usage):
     return {
@@ -37,6 +41,10 @@ def _stream_response(deltas):
                         "output_tokens": 0,
                         "cache_creation_input_tokens": 12,
                         "cache_read_input_tokens": 5,
+                        "cache_creation": {
+                            "ephemeral_1h_input_tokens": 12,
+                            "ephemeral_5m_input_tokens": 0,
+                        },
                     }
                 ),
                 "content": [],
@@ -116,6 +124,10 @@ def test_sdk_usage_reaches_saved_attempt_and_raw_log(streaming, beta, thinking_t
         "output_tokens": 200,
         "cache_creation_input_tokens": 12,
         "cache_read_input_tokens": 5,
+        "cache_creation": {
+            "ephemeral_1h_input_tokens": 12,
+            "ephemeral_5m_input_tokens": 0,
+        },
     }
     if thinking_tokens is not None:
         usage["output_tokens_details"] = {"thinking_tokens": thinking_tokens}
