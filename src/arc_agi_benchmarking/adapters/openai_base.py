@@ -186,6 +186,7 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
 
             # Process the stream and collect data
             content_chunks = []
+            reasoning_chunks = []
             last_chunk = None
             finish_reason = "stop"
             chunk_count = 0
@@ -200,6 +201,11 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                     delta_content = chunk.choices[0].delta.content or ""
                     if delta_content:
                         content_chunks.append(delta_content)
+                    delta_reasoning = getattr(
+                        chunk.choices[0].delta, "reasoning_content", None
+                    )
+                    if isinstance(delta_reasoning, str) and delta_reasoning:
+                        reasoning_chunks.append(delta_reasoning)
 
                 # Track finish reason
                 if chunk.choices and chunk.choices[0].finish_reason:
@@ -239,7 +245,12 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                         finish_reason=finish_reason,
                         index=0,
                         message=ChatCompletionMessage(
-                            content=final_content, role="assistant"
+                            content=final_content,
+                            role="assistant",
+                            **(
+                                {"reasoning_content": "".join(reasoning_chunks)}
+                                if reasoning_chunks else {}
+                            ),
                         ),
                         logprobs=None,
                     )

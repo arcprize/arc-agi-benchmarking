@@ -184,3 +184,4 @@ analyze_submission_times.py
 .codex_*
 dummy_submissions
 dummy_results
+artifacts/

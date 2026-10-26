@@ -453,6 +453,51 @@ class TestOpenAIBaseProviderLogic:
         assert result.usage.completion_tokens == 20
         assert result.usage.total_tokens == 30
 
+    @pytest.mark.parametrize("reasoning_parts", [None, ["First ", "", "then reason."]])
+    def test_streamed_reasoning_survives_serialization(self, adapter_instance, reasoning_parts):
+        """Preserve reasoning separately from the final answer and usage."""
+        from openai.types.chat import ChatCompletionChunk
+
+        deltas = [{"role": "assistant", "content": None}]
+        if reasoning_parts is not None:
+            deltas.extend({"reasoning_content": part} for part in reasoning_parts)
+        deltas.extend([{"content": "[["}, {"content": "1]]"}])
+        chunks = [
+            ChatCompletionChunk(
+                id="stream-test", created=12345, model="test-model",
+                object="chat.completion.chunk",
+                choices=[{"index": 0, "delta": delta, "finish_reason": None}],
+            )
+            for delta in deltas
+        ]
+        chunks.append(ChatCompletionChunk(
+            id="stream-test", created=12345, model="test-model",
+            object="chat.completion.chunk",
+            choices=[{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        ))
+        chunks.append(ChatCompletionChunk(
+            id="stream-test", created=12345, model="test-model",
+            object="chat.completion.chunk", choices=[],
+            usage=CompletionUsage(
+                prompt_tokens=10, completion_tokens=20, total_tokens=30,
+                completion_tokens_details={"reasoning_tokens": 15 if reasoning_parts else 0},
+            ),
+        ))
+        adapter_instance.model_config.kwargs = {"stream": True}
+        adapter_instance.client.chat.completions.create.return_value = iter(chunks)
+        with patch.object(adapter_instance, "_record_deferred_raw_api_success") as raw_log:
+            attempt = adapter_instance.make_prediction("Solve the task")
+
+        expected = "".join(reasoning_parts) if reasoning_parts else None
+        saved = attempt.model_dump(mode="json")
+        assert saved["metadata"]["reasoning_content"] == expected
+        assert saved["metadata"]["reasoning_summary"] is None
+        assert attempt.answer == [[1]]
+        response = raw_log.call_args.args[1]
+        assert adapter_instance._get_reasoning_content(response) == expected
+        assert response.usage.completion_tokens_details.reasoning_tokens == (15 if reasoning_parts else 0)
+        assert response.choices[0].finish_reason == "stop"
+
     def test_streaming_config_attribute_access(self, adapter_instance):
         """Test that streaming config is properly accessed from model config."""
         # Test when stream attribute doesn't exist (should default to False)
