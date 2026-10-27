@@ -167,6 +167,7 @@ cython_debug/
 *plan*.md
 .python-version
 .vscode/
+.idea/
 models_private.yml
 .cursor
 submissions*/*

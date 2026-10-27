@@ -14,7 +14,7 @@ classifiers = [
 dependencies = [
     "annotated-types==0.7.0",
     "anyio==4.9.0",
-    "claude-agent-sdk==0.1.18",
+    "claude-agent-sdk==0.2.174",
     "click==8.1.8",
     "distro==1.9.0",
     "filelock==3.16.1",
@@ -45,7 +45,7 @@ dependencies = [
     "pytest-mock==3.14.0",
     "anthropic==0.125.0",
     "cachetools==5.5.2",
-    "certifi==2024.8.30",
+    "certifi==2026.10.23",
     "charset-normalizer==3.4.0",
     "google-api-core==2.24.1",
     "google-auth==2.56.2",
