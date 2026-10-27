@@ -15,5 +15,6 @@ from .mulerouter import MuleRouterAdapter
 from .xai import XAIAdapter
 from .random import RandomAdapter
 from .claudeagentsdk import ClaudeagentsdkAdapter
+from .azure import AzureAdapter
 from .codexcli import CodexcliAdapter
 from .together import TogetherAdapter
