@@ -309,9 +309,9 @@ class ModelConfig(BaseModel):
 
     @model_validator(mode='after')
     def require_api_key_env(self):
-        """Require authenticated provider configs to name their API key."""
-        if self.provider != 'random' and not self.api_key_env:
-            raise ValueError("api_key_env is required unless provider is 'random'")
+        """Anthropic may use WIF; its runtime/preflight validates credentials."""
+        if self.provider not in ('random', 'anthropic') and not self.api_key_env:
+            raise ValueError("api_key_env is required unless provider is 'random' or 'anthropic'")
         return self
 
 

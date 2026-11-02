@@ -45,7 +45,7 @@ uv run src/arc_agi_benchmarking/scoring/scoring.py \
 
 If using the random solver, expect all the attempts to be incorrect.
 
-If you want to run real models, change the `config` and add the corresponding API keys (see Data and Config sections below).
+If you want to run real models, change the `config` and add the corresponding API keys or configure [Anthropic WIF](#anthropic-authentication) (see Data and Config sections below).
 
 ## Data
 
@@ -116,7 +116,7 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
   - name: "gpt-4o-2024-11-20"   # config name you reference on the CLI; typically includes the reasoning level for clarity (e.g., "-basic", "-advanced")
     model_name: "gpt-4o-2024-11-20"  # provider’s actual model id
     provider: "openai"         # must match an adapter
-    api_key_env: "OPENAI_API_KEY"  # required unless provider is random
+    api_key_env: "OPENAI_API_KEY"  # required for API-key authentication
     max_output_tokens: 4096    # optional; provider-specific
     temperature: 0.0           # optional; provider-specific
     pricing:
@@ -125,11 +125,53 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
       output: 15.00            # USD per 1M output tokens
   ```
   - Standard fields: `name`, `model_name`, `provider`, `pricing` (`input`/`output` per 1M tokens, `date` for traceability).
-  - API keys: every config except `provider: random` must set `api_key_env` to the environment variable containing its API key. Every adapter reads the named variable; adapters do not provide defaults.
+  - API keys: configs using API-key authentication must set `api_key_env` to the environment variable containing their API key. Adapters read the named variable without providing defaults. `provider: random` needs no credentials, and `provider: anthropic` can omit `api_key_env` when using WIF.
   - Google configs accept either `provider: google` or `provider: gemini`. Both use the Google adapter and normalize internally to `gemini`, sharing its provider limits and timeout settings in `provider_config.yml`.
   - Provider kwargs: any extra keys become `kwargs` and are passed directly to the SDK (e.g., `temperature`, `max_output_tokens`, `stream`, etc.).
 - Rate limits live in `provider_config.yml` (`rate`, `period` per provider).
 - Environment: set provider keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `HUGGING_FACE_API_KEY`). Copy `.env.example` to `.env` and fill in.
+
+### Anthropic authentication
+
+The native Anthropic adapter (`provider: anthropic`) supports API keys and AWS
+Workload Identity Federation (WIF). Existing model configs work with either
+method; no WIF options need to be added to the model YAML.
+
+For AWS WIF, set these standard environment variables in the runner environment
+or in `.env` for a local run with AWS credentials:
+
+```bash
+ANTHROPIC_FEDERATION_RULE_ID=fdrl_...
+ANTHROPIC_ORGANIZATION_ID=00000000-0000-0000-0000-000000000000
+ANTHROPIC_SERVICE_ACCOUNT_ID=svac_...
+ANTHROPIC_WORKSPACE_ID=wrkspc_...
+```
+
+All four values are required, including an explicit workspace ID. Setting any
+of them selects WIF for every `provider: anthropic` model in that environment,
+even if an API key is also present. Missing, empty, or whitespace-only values
+fail validation without falling back to an API key. This applies to regular,
+streaming, and batch requests through the native adapter. Other providers,
+including OpenRouter and the separate Claude Agent SDK adapter, keep their
+existing authentication.
+
+To use legacy API-key authentication, unset all four WIF variables and remove
+them from `.env` if present. Set the variable named by `api_key_env` in the model
+config, normally `ANTHROPIC_API_KEY`; custom names such as
+`ANTHROPIC_API_KEY_NO_ZDR` remain supported. WIF does not require `api_key_env`.
+
+The runner follows [Anthropic's AWS WIF example](https://platform.claude.com/docs/en/manage-claude/wif-providers/aws):
+it uses the workload's AWS credentials to call STS in `us-east-1`, requesting a
+900-second identity token with audience `https://api.anthropic.com` and signing
+algorithm `RS256`. AWS outbound federation, `sts:GetWebIdentityToken` permission
+on the workload role, and the matching Anthropic issuer, federation rule, and
+service-account workspace membership must already be configured.
+
+Preflight checks the environment configuration without contacting AWS or
+Anthropic. The first API request exchanges an AWS identity token for an
+Anthropic access token. The SDK caches and refreshes that token, requesting a
+fresh AWS identity token on each exchange. Authentication failures do not
+switch the run back to an API key.
 
 ### Testing a new model
 
