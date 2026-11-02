@@ -11,6 +11,10 @@ from arc_agi_benchmarking.schemas import (
     Attempt,
 )
 import anthropic
+from arc_agi_benchmarking.utils.anthropic_auth import (
+    get_sts_web_identity_token,
+    read_anthropic_wif_environment,
+)
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
 import json
@@ -30,6 +34,19 @@ class AnthropicAdapter(ProviderAdapter):
         """
         Initialize the Anthropic model
         """
+        wif_environment = read_anthropic_wif_environment()
+        if wif_environment is not None:
+            return anthropic.Anthropic(
+                credentials=anthropic.WorkloadIdentityCredentials(
+                    identity_token_provider=get_sts_web_identity_token,
+                    federation_rule_id=wif_environment["ANTHROPIC_FEDERATION_RULE_ID"],
+                    organization_id=wif_environment["ANTHROPIC_ORGANIZATION_ID"],
+                    service_account_id=wif_environment["ANTHROPIC_SERVICE_ACCOUNT_ID"],
+                    workspace_id=wif_environment["ANTHROPIC_WORKSPACE_ID"],
+                ),
+                max_retries=0,
+            )
+
         client = anthropic.Anthropic(
             api_key=self.get_api_key(),
             max_retries=0,

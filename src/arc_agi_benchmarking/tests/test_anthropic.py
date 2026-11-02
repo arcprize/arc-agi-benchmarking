@@ -5,6 +5,7 @@ from arc_agi_benchmarking.adapters.anthropic import AnthropicAdapter
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
 import os
 from dotenv import load_dotenv
+from arc_agi_benchmarking.utils.anthropic_auth import ANTHROPIC_WIF_REQUIRED_ENV
 
 load_dotenv()
 
@@ -23,6 +24,8 @@ def mock_model_config():
 
 
 def test_init_client_uses_configured_api_key_env(mock_model_config, monkeypatch):
+    for name in ANTHROPIC_WIF_REQUIRED_ENV:
+        monkeypatch.delenv(name, raising=False)
     adapter = AnthropicAdapter.__new__(AnthropicAdapter)
     adapter.model_config = mock_model_config.model_copy(
         update={"api_key_env": "CUSTOM_ANTHROPIC_KEY"}

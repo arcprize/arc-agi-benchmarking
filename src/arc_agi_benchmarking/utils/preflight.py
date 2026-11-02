@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from arc_agi_benchmarking.utils.task_utils import read_models_config
 from arc_agi_benchmarking.schemas import ModelConfig
+from arc_agi_benchmarking.utils.anthropic_auth import read_anthropic_wif_environment
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,23 @@ def validate_api_key(
     provider: str,
     api_key_env: Optional[str] = None,
 ) -> ValidationResult:
-    """Check the API key named by the model configuration."""
+    """Check Anthropic WIF settings or the API key named by the model config."""
+    if provider == "anthropic":
+        try:
+            wif_environment = read_anthropic_wif_environment()
+        except ValueError as error:
+            return ValidationResult(
+                passed=False,
+                message="Incomplete Anthropic WIF environment configuration",
+                details=str(error),
+            )
+        if wif_environment is not None:
+            return ValidationResult(
+                passed=True,
+                message="Anthropic WIF environment configuration found",
+                details="AWS access and token exchange are checked on the first API request",
+            )
+
     if provider == "random":
         return ValidationResult(
             passed=True,
@@ -340,7 +357,7 @@ def run_preflight(
         except Exception:
             pass
 
-    # 2. Validate API key (only if config was found)
+    # 2. Validate credentials (only if config was found)
     if model_config:
         api_result = validate_api_key(
             model_config.provider,
@@ -350,7 +367,7 @@ def run_preflight(
     else:
         validations.append(ValidationResult(
             passed=False,
-            message="Skipping API key validation (config not found)"
+            message="Skipping credential validation (config not found)"
         ))
 
     # 3. Validate data directory
