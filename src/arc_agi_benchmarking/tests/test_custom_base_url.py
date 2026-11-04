@@ -72,6 +72,14 @@ class TestCustomBaseUrlSchema:
 class TestCustomBaseUrlClientInit:
     """init_client() should honor base_url / api_key_env from the config."""
 
+    def test_uses_two_hour_request_timeout(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+        config = _make_config(api_key_env="OPENAI_API_KEY")
+
+        call_args = _init_client_with_config(config)
+
+        assert call_args.kwargs["timeout"] == 2 * 60 * 60
+
     def test_uses_custom_base_url_and_api_key_env(self, monkeypatch):
         monkeypatch.setenv("BASETEN_API_KEY", "baseten-secret")
         config = _make_config(
