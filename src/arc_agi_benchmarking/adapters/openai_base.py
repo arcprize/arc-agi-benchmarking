@@ -50,7 +50,13 @@ class _ResponsesOutput:
 
 class _ResponsesResponse:
     def __init__(
-        self, model_name, content, usage_data, response_id, finish_reason="stop"
+        self,
+        model_name,
+        content,
+        usage_data,
+        response_id,
+        finish_reason="stop",
+        reasoning_summary=None,
     ):
         self.id = response_id or "stream-response"
         self.model = model_name
@@ -58,6 +64,7 @@ class _ResponsesResponse:
         self.output = [_ResponsesOutput(content)]
         self.finish_reason = finish_reason
         self.usage = usage_data
+        self.reasoning_summary = reasoning_summary
 
 
 class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
@@ -344,6 +351,8 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
             finish_reason = "stop"
             usage_data = None
             chunk_count = 0
+            summary_chunks = {}
+            reasoning_summary = None
 
             for chunk in stream:
                 chunk_count += 1
@@ -361,6 +370,10 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 else:
                     delta_length = 0
 
+                if chunk.type == "response.reasoning_summary_text.delta":
+                    key = (chunk.output_index, chunk.summary_index)
+                    summary_chunks.setdefault(key, []).append(chunk.delta or "")
+
                 # Track finish reason
                 if hasattr(chunk, "finish_reason") and chunk.finish_reason:
                     finish_reason = chunk.finish_reason
@@ -368,6 +381,9 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 # Extract usage data
                 if hasattr(chunk, "response") and chunk.response:
                     usage_data = self._get_usage(chunk.response)
+                    summary = self._get_reasoning_summary(chunk.response)
+                    if summary:
+                        reasoning_summary = summary
 
                 if chunk_count % 10 == 0 and logger.isEnabledFor(logging.DEBUG):
                     logger.debug(
@@ -389,6 +405,16 @@ class OpenAIBaseAdapter(ProviderAdapter, abc.ABC):
                 usage_data=usage_data,
                 response_id=response_id,
                 finish_reason=finish_reason,
+                # Prefer the full returned summary over streamed fragments.
+                reasoning_summary=(
+                    reasoning_summary
+                    or "\n\n".join(
+                        "".join(summary_chunks[key])
+                        for key in sorted(summary_chunks)
+                        if any(summary_chunks[key])
+                    )
+                    or None
+                ),
             )
             self._record_deferred_raw_api_success(stream, final_response)
             return final_response
@@ -541,23 +567,22 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
             ),
         )
 
-    def _get_reasoning_summary(self, response: Any) -> Optional[List[Dict[str, Any]]]:
-        """
-        Extract reasoning summary from the response if available (primarily for Responses API).
-        """
-        reasoning_summary = None
-        if self.model_config.api_type == APIType.RESPONSES:
-            # Safely access potential reasoning summary
-            if (
-                hasattr(response, "reasoning")
-                and response.reasoning
-                and hasattr(response.reasoning, "summary")
-            ):
-                reasoning_summary = (
-                    response.reasoning.summary
-                )  # Will be None if not present
-        # Chat Completions API does not currently provide a separate summary field
-        return reasoning_summary
+    def _get_reasoning_summary(self, response: Any) -> Optional[str]:
+        """Read returned summary text, rather than the echoed reasoning options."""
+        if self.model_config.api_type != APIType.RESPONSES:
+            return None
+        if isinstance(response, _ResponsesResponse):
+            return response.reasoning_summary
+
+        parts = []
+        for item in getattr(response, "output", None) or []:
+            if getattr(item, "type", None) != "reasoning":
+                continue
+            for part in getattr(item, "summary", None) or []:
+                text = getattr(part, "text", None)
+                if isinstance(text, str) and text:
+                    parts.append(text)
+        return "\n\n".join(parts) or None
 
     def _get_reasoning_content(self, response: Any) -> Optional[str]:
         """Extract reasoning content from a Chat Completions response."""
