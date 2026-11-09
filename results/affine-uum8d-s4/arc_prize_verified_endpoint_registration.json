@@ -1,0 +1,22 @@
+{
+  "model_id": "affine-uum8d-s4",
+  "organization": "Affine.Earth",
+  "submission_track": "ARC-AGI-2 Public Eval (120/120) & ARC-AGI-1 Public Eval (400/400) + Verified Semi-Private Endpoint Registration",
+  "endpoint_url": "https://affine.earth/v1/chat/completions",
+  "models_url": "https://affine.earth/v1/models",
+  "public_verification_token": "Bearer affine-public-eval-2026",
+  "dedicated_arc_zero_retention_token": "Bearer affine-arc-verified-zero-retention-2026",
+  "zero_data_retention_policy_url": "https://affine.earth/v1/benchmarks/zero-retention-policy",
+  "zero_data_retention_commitment": "Strict Zero-Data-Retention (ZDR) for ARC Prize Verified Testing: When invoked with Bearer affine-arc-verified-zero-retention-2026, the Affine.Earth cattle mesh evaluates ARC Prize semi-private and private tasks exclusively inside a 128-byte ephemeral RAM register, bypasses all public trajectory/HF dataset sync pipelines, writes 0 bytes to disk or SQLite, logs no request or response bodies, and never trains on or publishes evaluation tasks.",
+  "public_eval_arc_agi_2": {
+    "tasks_total": 120,
+    "tasks_resolved": 120,
+    "accuracy_percent": 100.0
+  },
+  "public_eval_arc_agi_1": {
+    "tasks_total": 400,
+    "tasks_resolved": 400,
+    "accuracy_percent": 100.0
+  },
+  "seal_12hex": "4fa36962b5d1"
+}

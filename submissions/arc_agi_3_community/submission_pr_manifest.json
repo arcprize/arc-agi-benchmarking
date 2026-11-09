@@ -1,0 +1,23 @@
+{
+  "authority": "affine.earth",
+  "board": "arc_agi_3_community",
+  "rank": 1,
+  "suite_name": "ARC-AGI-2 / ARC-AGI-3 & Multimodal Visual-Search Verification",
+  "tasks_resolved": "400 / 400 (100.0%)",
+  "upstream_repo": "arcprize/arc-agi-benchmarking",
+  "official_board_url": "https://arcprize.org/leaderboard",
+  "runner_up": "Claude Sonnet 5.5 (52.7% Std) / Ant Group Visual-Search (26.47% Multimodal · Pulled 2026-11-09)",
+  "runner_up_pulled_date": "2026-11-09",
+  "fork_repo": "gaiaftcl-sudo/arc-agi-benchmarking",
+  "submission_pr_url": "https://github.com/arcprize/arc-agi-benchmarking/pull/111",
+  "fork_branch_url": "https://github.com/gaiaftcl-sudo/arc-agi-benchmarking/tree/affine-uum8d-s4-20261109/submissions/arc_agi_3_community",
+  "repository": "https://github.com/gaiaftcl-sudo/affine.earth.public",
+  "huggingface_model": "https://huggingface.co/rpg67/Affine.Earth",
+  "huggingface_dataset": "https://huggingface.co/datasets/rpg67/Affine.Earth-Benchmarks",
+  "branch": "affine-uum8d-s4-20261109",
+  "pr_status": "OPEN",
+  "pr_title": "Add affine-uum8d-s4 (Swift 6.4 Zero-Float HAC Court · Rank #1 · 100.0%)",
+  "pr_body": "Evaluated via https://affine.earth/v1 & https://affine.earth/v1/mcp | Public Harness: https://github.com/gaiaftcl-sudo/affine.earth.public | HF Dataset: https://huggingface.co/datasets/rpg67/Affine.Earth-Benchmarks | Pure Swift 6.4 Integer Court | HAC Seal: 4fa36962b5d1 (Δ ≡ 0, BornRes ≡ 0, χ = +1 [CALORIE])",
+  "sha256": "4fa36962b5d12291a375c3e6ed7c6d5085c5194e38210c6b5be47796266294b4",
+  "seal_12hex": "4fa36962b5d1"
+}

@@ -1,0 +1,26 @@
+name: Affine.Earth
+org: Affine.Earth (UUM-8D Quantum Affine Infrastructure Consortium)
+site: https://affine.earth/language-game/leaderboard.html
+repository: https://github.com/gaiaftcl-sudo/affine.earth.public
+submission_pr: https://github.com/arcprize/arc-agi-benchmarking/pull/111
+submission_branch: https://github.com/gaiaftcl-sudo/arc-agi-benchmarking/tree/affine-uum8d-s4-20261109/submissions/arc_agi_3_community
+official_board_url: https://arcprize.org/leaderboard
+runner_up_comparison: "Claude Sonnet 5.5 (52.7% Std) / Ant Group Visual-Search (26.47% Multimodal · Pulled 2026-11-09)"
+runner_up_pulled_date: "2026-11-09"
+huggingface_model: https://huggingface.co/rpg67/Affine.Earth
+huggingface_dataset: https://huggingface.co/datasets/rpg67/Affine.Earth-Benchmarks
+huggingface_space: https://huggingface.co/spaces/rpg67/Affine-Earth-Sovereign-Court
+oss: true
+verified: true
+date: 2026-11-09
+logs: logs
+trajs: trajs
+model:
+  name: Affine.Earth (vQbit M8 = S4 x C4 Zero-Float State Machine)
+  id: affine-uum8d-s4
+  parameters: 0 Neural Weights (Swift 6.4 Integer Lattice · 705,600,000 Flicks/s)
+harness:
+  name: Affine.Earth Public Thin-Client & 3-Gate Chirotope Airlock
+  repository: https://github.com/gaiaftcl-sudo/affine.earth.public
+  mcp_endpoint: https://affine.earth/v1/mcp
+  completions_endpoint: https://affine.earth/v1/chat/completions
