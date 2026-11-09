@@ -308,3 +308,42 @@ def test_malformed_no_metadata(arc_scorer_fixture):
 
 def test_malformed_no_answer(arc_scorer_fixture):
     run_error_test_scenario(arc_scorer_fixture, SUBMISSION_MALFORMED_NO_ANSWER, KeyError)
+
+
+def test_duplicate_pair_index_does_not_score_a_test_pair_twice(arc_scorer_fixture):
+    scorer, submission_dir = arc_scorer_fixture
+    pair_zero_answer = [[1, 1], [1, 1]]
+    submission = [
+        {"attempt_1": {"answer": pair_zero_answer, "metadata": {**DEFAULT_METADATA, "pair_index": 0}}}
+        for _ in range(3)
+    ]
+    submission_file = submission_dir / "test_task.json"
+    create_mock_json(submission_file, submission)
+
+    with pytest.warns(UserWarning, match="Duplicate pair_index 0"):
+        result = scorer.score_task_from_file("test_task", submission_file)
+
+    assert result.score == pytest.approx(1.0 / 3.0)
+
+
+def test_score_submission_reports_missing_task_coverage(arc_scorer_fixture, capsys):
+    scorer, submission_dir = arc_scorer_fixture
+    create_mock_json(scorer.task_dir / "missing_task.json", SOLUTION_DATA)
+    scorer = ARCScorer(str(scorer.task_dir), str(submission_dir))
+    scorer.results_dir = submission_dir.parent / "results"
+    create_mock_json(submission_dir / "test_task.json", SUBMISSION_PERFECT)
+
+    with pytest.warns(UserWarning, match="Incomplete task coverage: 1/2"):
+        total_score, total_tasks = scorer.score_submission()
+
+    captured = capsys.readouterr()
+    assert total_score == pytest.approx(1.0)
+    assert total_tasks == 1
+    assert "Task coverage: 1/2" in captured.out
+    assert "Missing task ids: missing_task" in captured.out
+    results = json.loads((scorer.results_dir / "results.json").read_text())
+    assert results["task_coverage"] == {
+        "submitted": 1,
+        "expected": 2,
+        "missing_task_ids": ["missing_task"],
+    }
