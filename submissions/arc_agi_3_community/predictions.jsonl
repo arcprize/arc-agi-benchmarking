@@ -1,0 +1,2 @@
+{"task_id":"arc-agi-3-lattice-001","model":"Affine.Earth","model_name_or_path":"Affine.Earth","attempt_1":[[1,0,1],[0,1,0],[1,0,1]],"attempt_2":[[1,0,1],[0,1,0],[1,0,1]],"cost_micro_usd":0,"execution_flicks":34,"born_residual":0}
+{"task_id":"arc-agi-3-lattice-002","model":"Affine.Earth","model_name_or_path":"Affine.Earth","attempt_1":[[0,2,0],[2,4,2],[0,2,0]],"attempt_2":[[0,2,0],[2,4,2],[0,2,0]],"cost_micro_usd":0,"execution_flicks":34,"born_residual":0}

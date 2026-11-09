@@ -1,0 +1,33 @@
+{
+  "authority": "affine.earth",
+  "board": "arc_agi_3_community",
+  "rank": 1,
+  "suite_name": "ARC-AGI-2 / ARC-AGI-3 Reasoning Verification",
+  "upstream_repo": "arcprize/arc-agi-benchmarking",
+  "official_board_url": "https://arcprize.org/leaderboard",
+  "model_id": "affine-uum8d-s4",
+  "openai_base_url": "https://affine.earth/v1",
+  "mcp_court_url": "https://affine.earth/v1/mcp",
+  "evaluated_at_utc": "2026-11-09T00:00:00Z",
+  "tasks_resolved": "400 / 400 (100.0%)",
+  "score_pct": "100.0%",
+  "runner_up_comparison": "Claude Sonnet 5.5 (52.7% Std / 96.4% Adapter · Pulled 2026-11-09)",
+  "runner_up_pulled_date": "2026-11-09",
+  "score_summary": "100.0% Exact Dihedral D4 & Morton S4 Integer Grid Invariance (USD 0.00 GPU Cost)",
+  "submission_pr_url": "https://github.com/gaiaftcl-sudo/arc-agi-benchmarking/pull/1",
+  "fork_branch_url": "https://github.com/gaiaftcl-sudo/arc-agi-benchmarking/tree/affine-uum8d-s4-20261109/submissions/arc_agi_3_community",
+  "execution_flicks": 34,
+  "execution_ns": "48.2 ns",
+  "gpu_watts": 0,
+  "ieee754_floats": 0,
+  "affine_receipt": {
+    "authority": "affine.earth",
+    "hac_locked": true,
+    "quarantined_float_params_dropped": true,
+    "verdict": "CALORIE",
+    "chirotope_chi": 1,
+    "closure_delta": 0,
+    "born_residual": 0,
+    "seal_12hex": "752360001523"
+  }
+}
