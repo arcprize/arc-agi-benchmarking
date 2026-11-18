@@ -5,7 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "arc-agi-benchmarking"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE.md"}
 classifiers = [
     "License :: OSI Approved :: BSD License"
@@ -13,18 +13,19 @@ classifiers = [
 
 dependencies = [
     "annotated-types==0.7.0",
-    "anyio==4.9.0",
+    "anyio==4.10.0",
     "claude-agent-sdk==0.2.174",
     "click==8.1.8",
     "distro==1.9.0",
     "filelock==3.16.1",
     "fsspec==2024.10.0",
-    "h11==0.14.0",
-    "httpcore==1.0.6",
+    "h11==0.16.0",
+    "httpcore==1.0.9",
     "httplib2==0.22.0",
     "httpx==0.28.1",
+    "httpx2==2.16.2",
     "huggingface-hub==0.29.1",
-    "idna==3.10",
+    "idna==3.18",
     "iniconfig==2.0.0",
     "jiter==0.6.1",
     "packaging==24.1",
@@ -49,7 +50,7 @@ dependencies = [
     "charset-normalizer==3.4.0",
     "google-api-core==2.24.1",
     "google-auth==2.56.2",
-    "google-genai==2.30.0",
+    "google-genai==3.5.0",
     "googleapis-common-protos==1.68.0",
     "openai==1.95.1",
     "proto-plus==1.26.0",

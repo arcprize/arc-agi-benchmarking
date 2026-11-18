@@ -4,10 +4,9 @@ import base64
 import copy
 import json
 import logging
-from contextlib import nullcontext
 from io import StringIO
 
-import httpx
+import httpx2 as httpx
 import pytest
 
 from arc_agi_benchmarking.adapters.gemini_streaming import (
@@ -199,20 +198,9 @@ def test_failed_or_unfinished_stream_never_accepts_provisional_grid(
         ],
         stream=True,
     )
-    warning = (
-        pytest.warns(
-            UserWarning, match="MALFORMED_RESPONSE is not a valid FinishReason"
-        )
-        if reason == "MALFORMED_RESPONSE"
-        else nullcontext()
-    )
-    with (
-        warning,
-        pytest.raises(
-            GeminiStreamError,
-            match="Unexpected Gemini stream finish reason",
-        ) as exc,
-    ):
+    with pytest.raises(
+        GeminiStreamError, match="Unexpected Gemini stream finish reason"
+    ) as exc:
         adapter.make_prediction("test", pair_index=0)
     assert len(requests) == 1
     assert exc.value.usage_metadata.total_token_count == 13
@@ -468,3 +456,38 @@ def test_empty_usage_event_does_not_erase_last_reported_cumulative_counts(
     assert (
         adapter.make_prediction("test", pair_index=0).metadata.usage.total_tokens == 13
     )
+
+
+def test_legacy_httpx_transport_still_recovers_at_checkpoint(adapter_factory):
+    import httpx as legacy_httpx
+
+    class DisconnectedStream(legacy_httpx.SyncByteStream):
+        def __iter__(self):
+            event = slice_response(
+                None, [{"text": "[["}], token("one"), usage()
+            )
+            yield f"data: {json.dumps(event)}\n\n".encode()
+            raise legacy_httpx.ReadError("disconnected")
+
+    final = slice_response("STOP", [{"text": "5]]"}], usage=usage())
+    adapter, requests = adapter_factory(
+        [
+            legacy_httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                stream=DisconnectedStream(),
+            ),
+            legacy_httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=f"data: {json.dumps(final)}\n\n".encode(),
+            ),
+        ],
+        http_backend=legacy_httpx,
+        stream=True,
+    )
+    attempt = adapter.make_prediction("test", pair_index=0)
+    assert attempt.answer == [[5]]
+    assert len(requests) == 2
+    assert json.loads(requests[1].content)["continuationToken"] == token("one")
+    assert attempt.metadata.usage.total_tokens == 26

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import httpx
+import httpx2
 from google.genai import types
 
 logger = logging.getLogger(__name__)
@@ -175,7 +176,7 @@ def stream_with_continuation(adapter, contents, config_params):
             usage[key] += value
         slices.append(hop.payload())
         if stream_error is not None and not isinstance(
-            stream_error, httpx.TransportError
+            stream_error, (httpx.TransportError, httpx2.TransportError)
         ):
             raise failure(
                 f"Gemini stream failed: {stream_error}", stream_error
