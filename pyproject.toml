@@ -49,7 +49,7 @@ dependencies = [
     "charset-normalizer==3.4.0",
     "google-api-core==2.24.1",
     "google-auth==2.56.2",
-    "google-genai==2.14.0",
+    "google-genai==2.30.0",
     "googleapis-common-protos==1.68.0",
     "openai==1.95.1",
     "proto-plus==1.26.0",

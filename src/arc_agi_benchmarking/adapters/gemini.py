@@ -7,15 +7,10 @@ from google.genai import types
 from typing import List, Optional
 from datetime import datetime, timezone
 from arc_agi_benchmarking.schemas import ARCTaskOutput, AttemptMetadata, Choice, Message, Usage, Cost, CompletionTokensDetails, Attempt
+from .gemini_streaming import stream_with_continuation
 import logging
 
 logger = logging.getLogger(__name__)
-
-class _StreamResponse:
-    """Wrapper for streaming response to hold accumulated text and metadata."""
-    def __init__(self, text: str, usage_metadata):
-        self.text = text
-        self.usage_metadata = usage_metadata
 
 class GeminiAdapter(ProviderAdapter):
     def init_client(self):
@@ -241,8 +236,7 @@ class GeminiAdapter(ProviderAdapter):
 
     def chat_completion_stream(self, messages: list):
         """
-        Make a streaming API call to Gemini and return the final complete response.
-        Only the final message is returned after streaming all chunks.
+        Return one prediction after all streamed continuation slices complete.
         """
         logger.debug(f"Starting streaming for Gemini model: {self.model_config.model_name}")
 
@@ -267,59 +261,7 @@ class GeminiAdapter(ProviderAdapter):
         # Prepare config for streaming, removing 'stream' to avoid duplication
         config_params = {k: v for k, v in self.generation_config_dict.items() if k != 'stream'}
 
-        stream = None
-        try:
-            # Stream the content - we only care about the final result
-            stream = self._request(
-                "models.generate_content_stream",
-                self.client.models.generate_content_stream,
-                model=self.model_config.model_name,
-                contents=contents_list,
-                config=types.GenerateContentConfig(**config_params),
-                _raw_log_deferred=True,
-            )
-
-            # Iterate through all chunks to get to the final response
-            # This prevents connection hangs while we don't care about intermediate results
-            # We need to accumulate text chunks since streaming responses may not have .text on individual chunks
-            text_chunks = []
-            final_chunk = None
-            chunk_count = 0
-            for chunk in stream:
-                final_chunk = chunk
-                chunk_count += 1
-
-                # Accumulate text from each chunk
-                chunk_text = getattr(chunk, 'text', '')
-                if chunk_text:
-                    text_chunks.append(chunk_text)
-
-                # Log progress every 100 chunks to show it's working
-                if chunk_count % 1 == 0:
-                    logger.debug(f"Streaming progress: {chunk_count} chunks received")
-
-            # Combine all text chunks into final text
-            final_text = ''.join(text_chunks)
-
-            # Get usage metadata from the final chunk
-            usage_metadata = getattr(final_chunk, 'usage_metadata', None) if final_chunk else None
-
-            logger.debug(f"Streaming complete for Gemini model: {self.model_config.model_name}. Total chunks: {chunk_count}")
-
-            # Return a wrapper object with the accumulated text and metadata
-            final_response = _StreamResponse(
-                text=final_text,
-                usage_metadata=usage_metadata,
-            )
-            self._record_deferred_raw_api_success(stream, final_response)
-            return final_response
-
-        except Exception as e:
-            self._record_deferred_raw_api_failure(stream, e)
-            logger.error(f"Error in chat_completion_stream with google.genai: {e}")
-            if hasattr(e, 'response') and e.response:
-                 logger.error(f"API Error details: {e.response}")
-            return None
+        return stream_with_continuation(self, contents_list, config_params)
 
     def extract_json_from_response(self, input_response: str) -> Optional[List[List[int]]]:
         # Parse locally to avoid an additional generation solely for extraction.

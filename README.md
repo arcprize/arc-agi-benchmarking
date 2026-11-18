@@ -131,6 +131,31 @@ Model configs live in `src/arc_agi_benchmarking/models.yml`. Example:
 - Rate limits live in `provider_config.yml` (`rate`, `period` per provider).
 - Environment: set provider keys (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `HUGGING_FACE_API_KEY`). Copy `.env.example` to `.env` and fill in.
 
+### Gemini streamed generation
+
+Existing Google/Gemini configs with `stream: true` follow `CONTINUATION` tokens
+within the same prediction attempt. Generation continues until `STOP` or
+`MAX_TOKENS`; an intermediate slice is never parsed as a final grid. Continuation
+requires an explicit positive `max_output_tokens`, and every request retains the
+original cumulative output budget rather than reducing or increasing it.
+
+The stream handler follows the v3 runner's checkpoint approach. On a transport
+disconnect or early end with a checkpoint, it resumes from that checkpoint with
+at most three recovery requests per prediction. Output beyond the checkpoint is
+discarded, while all reported usage from the interrupted request is retained.
+Missing/repeated tokens, unsupported finish reasons, and missing usage metadata
+produce explicit errors for the existing task retry loop.
+
+Each HTTP request is independently rate limited and recorded in the raw API log.
+Cumulative usage updates within one stream are counted once; counts are added
+across continuation and recovery requests. Failure events retain partial output
+and observed usage even if no valid `Attempt` can be saved. SDK-managed automatic
+continuation is disabled so those requests remain visible to the harness.
+
+The Google SDK is pinned to 2.30.0 for its typed continuation fields while
+retaining Python 3.10 support. No new model config flag is needed, and existing
+non-streaming continuation handling remains in place.
+
 ### Anthropic authentication
 
 The native Anthropic adapter (`provider: anthropic`) supports API keys and AWS
