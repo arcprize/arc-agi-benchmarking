@@ -3,10 +3,9 @@ import copy
 import json
 from unittest.mock import Mock, patch
 
-import httpx
+import httpx2 as httpx
 import pytest
 from google import genai
-from google.genai import types
 
 from arc_agi_benchmarking.adapters.gemini import GeminiAdapter
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
@@ -22,9 +21,11 @@ def slice_response(reason, parts=None, token=None, usage=None):
 @pytest.fixture
 def adapter_factory(monkeypatch):
     clients = []
+    client_factory = genai.Client
+    monkeypatch.delenv("GOOGLE_GENAI_HTTP_CLIENT", raising=False)
     monkeypatch.setenv("TEST_GEMINI_KEY", "test-key")
 
-    def make(responses, **overrides):
+    def make(responses, http_backend=httpx, **overrides):
         requests = []
         responses = iter(responses)
 
@@ -33,14 +34,19 @@ def adapter_factory(monkeypatch):
             result = next(responses)
             if isinstance(result, Exception):
                 raise result
-            if isinstance(result, httpx.Response):
+            if isinstance(result, http_backend.Response):
                 return result
-            return httpx.Response(200, json=result)
+            return http_backend.Response(200, json=result)
 
-        http_client = httpx.Client(transport=httpx.MockTransport(handle))
-        client = genai.Client(api_key="test-key", http_options=types.HttpOptions(
-            httpx_client=http_client, retry_options=types.HttpRetryOptions(attempts=1)))
-        clients.append(client)
+        def create_client(**kwargs):
+            # Exercise the adapter's real initialization and API-version choice.
+            kwargs["http_options"].client_args = {
+                "transport": http_backend.MockTransport(handle)
+            }
+            client = client_factory(**kwargs)
+            clients.append(client)
+            return client
+
         config = ModelConfig(
             name="test-continuation", model_name="models/test-model", provider="gemini",
             api_key_env="TEST_GEMINI_KEY", pricing=ModelPricing(date="2026-09-29", input=2, output=4),
@@ -48,7 +54,7 @@ def adapter_factory(monkeypatch):
                     "http_options": {"timeout": 3600000}, **overrides},
         )
         with patch("arc_agi_benchmarking.adapters.provider.read_models_config", return_value=config), patch(
-            "arc_agi_benchmarking.adapters.gemini.genai.Client", return_value=client
+            "arc_agi_benchmarking.adapters.gemini.genai.Client", side_effect=create_client
         ):
             adapter = GeminiAdapter("test-continuation", request_limiter=Mock(acquire=Mock(return_value=0)), raw_api_logger=Mock())
         return adapter, requests

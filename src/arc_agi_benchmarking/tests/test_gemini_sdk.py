@@ -1,5 +1,7 @@
 """Compatibility tests for the pinned Google Gen AI SDK."""
 
+import json
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -8,6 +10,9 @@ from google.genai import types
 
 from arc_agi_benchmarking.adapters.gemini import GeminiAdapter
 from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
+from arc_agi_benchmarking.tests.test_gemini_continuation import (
+    adapter_factory as adapter_factory,
+)
 
 
 def test_gemini_sdk_supports_thinking_level():
@@ -68,3 +73,33 @@ def test_gemini_init_uses_configured_api_key_env(monkeypatch):
     call_kwargs = client.call_args.kwargs
     assert call_kwargs["api_key"] == "custom-gemini-secret"
     assert call_kwargs["http_options"].retry_options.attempts == 1
+    assert call_kwargs["http_options"].api_version == "v1beta"
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("api_version", [None, "v1"])
+def test_xhigh_wire_request_preserves_api_version_without_warning(
+    adapter_factory, stream, api_version
+):
+    from arc_agi_benchmarking.tests.test_gemini_continuation import slice_response
+    from arc_agi_benchmarking.tests.test_gemini_streaming import sse, usage
+
+    response = slice_response("STOP", [{"text": "[[1]]"}], usage=usage())
+    options = {"timeout": 3600000}
+    if api_version:
+        options["api_version"] = api_version
+    adapter, requests = adapter_factory(
+        [sse(response) if stream else response],
+        stream=stream,
+        thinking_config={"thinking_level": "xhigh"},
+        http_options=options,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        attempt = adapter.make_prediction("Solve the grid", pair_index=0)
+    assert attempt.answer == [[1]]
+    assert len(requests) == 1
+    assert requests[0].url.path.startswith(f"/{api_version or 'v1beta'}/")
+    body = json.loads(requests[0].content)
+    assert body["generationConfig"]["thinkingConfig"]["thinking_level"] == "XHIGH"
+    assert types.ThinkingLevel("xhigh") is types.ThinkingLevel.XHIGH

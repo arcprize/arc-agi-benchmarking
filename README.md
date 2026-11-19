@@ -152,9 +152,13 @@ across continuation and recovery requests. Failure events retain partial output
 and observed usage even if no valid `Attempt` can be saved. SDK-managed automatic
 continuation is disabled so those requests remain visible to the harness.
 
-The Google SDK is pinned to 2.30.0 for its typed continuation fields while
-retaining Python 3.10 support. No new model config flag is needed, and existing
-non-streaming continuation handling remains in place.
+The Google SDK is pinned to 3.5.0, including explicit `xhigh` thinking-level
+support. The project requires Python 3.11 or newer. The adapter retains `v1beta`
+as its default API version so existing preview models keep using the same
+endpoint; a config's `http_options.api_version` can override it. SDK 3's default
+`httpx2` transport and the optional legacy `httpx` backend both support bounded
+stream recovery. No new model config flag is needed, and existing non-streaming
+continuation handling remains in place.
 
 ### Anthropic authentication
 

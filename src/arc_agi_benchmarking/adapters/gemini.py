@@ -21,6 +21,8 @@ class GeminiAdapter(ProviderAdapter):
         client = genai.Client(
             api_key=self.get_api_key(),
             http_options=types.HttpOptions(
+                # SDK 3 defaults to v1; retain the endpoint used by existing configs.
+                api_version="v1beta",
                 retry_options=types.HttpRetryOptions(attempts=1)
             ),
         )
