@@ -529,8 +529,10 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
                 hasattr(raw_usage, "completion_tokens_details")
                 and raw_usage.completion_tokens_details
             ):
-                reasoning_tokens = getattr(
-                    raw_usage.completion_tokens_details, "reasoning_tokens", 0
+                # The SDK parses a missing or null count as None, not 0.
+                reasoning_tokens = (
+                    getattr(raw_usage.completion_tokens_details, "reasoning_tokens", 0)
+                    or 0
                 )
 
         elif self.model_config.api_type == APIType.RESPONSES:
@@ -547,8 +549,9 @@ IMPORTANT: Return ONLY the array, with no additional text, quotes, or formatting
                 hasattr(raw_usage, "output_tokens_details")
                 and raw_usage.output_tokens_details
             ):
-                reasoning_tokens = getattr(
-                    raw_usage.output_tokens_details, "reasoning_tokens", 0
+                reasoning_tokens = (
+                    getattr(raw_usage.output_tokens_details, "reasoning_tokens", 0)
+                    or 0
                 )
 
         # If no explicit reasoning tokens but total > prompt + completion, infer reasoning

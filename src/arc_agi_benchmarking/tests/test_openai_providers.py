@@ -215,6 +215,38 @@ class TestOpenAIBaseProviderLogic:
         # IMPORTANT: _get_usage itself infers reasoning here when rt_explicit=0 and pt+ct < tt
         assert usage.completion_tokens_details.reasoning_tokens == 20 # inferred rt
 
+    def test_get_usage_null_reasoning_tokens(self, adapter_instance):
+        raw_usage = CompletionUsage.model_validate({
+            "prompt_tokens": 100,
+            "completion_tokens": 200,
+            "total_tokens": 300,
+            "completion_tokens_details": {"text_tokens": 200},
+        })
+        assert raw_usage.completion_tokens_details.reasoning_tokens is None
+        response = SimpleNamespace(usage=raw_usage)
+
+        usage = adapter_instance._get_usage(response)
+        assert usage.prompt_tokens == 100
+        assert usage.completion_tokens == 200
+        assert usage.total_tokens == 300
+        assert usage.completion_tokens_details.reasoning_tokens == 0
+
+        cost = adapter_instance._calculate_cost(response)
+        assert cost.reasoning_cost == 0
+        assert cost.total_cost == pytest.approx(100 * 1.0 / 1_000_000 + 200 * 2.0 / 1_000_000)
+
+    def test_get_usage_null_reasoning_tokens_responses_api(self, adapter_instance):
+        adapter_instance.model_config.api_type = APIType.RESPONSES
+        raw_usage = SimpleNamespace(
+            input_tokens=100,
+            output_tokens=200,
+            total_tokens=300,
+            output_tokens_details=SimpleNamespace(reasoning_tokens=None),
+        )
+
+        usage = adapter_instance._get_usage(SimpleNamespace(usage=raw_usage))
+        assert usage.completion_tokens_details.reasoning_tokens == 0
+
     def test_get_reasoning_content(self, adapter_instance):
         response = SimpleNamespace(
             choices=[
