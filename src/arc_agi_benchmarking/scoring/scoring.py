@@ -52,6 +52,7 @@ class ARCScorer:
         output_tokens = 0
         all_tokens = 0
         total_duration = 0.0
+        used_pair_indices = set()
 
         for enum_pair_index, pair_attempts in enumerate(testing_results):
             # Try to extract pair_index from the attempt key
@@ -87,6 +88,25 @@ class ARCScorer:
                 print(f"    Warning: Invalid or out-of-bounds pair_index {pair_index} derived for pair {enum_pair_index} in task {task.get_hash()}, skipping pair.")
                 continue
             
+            if pair_index in used_pair_indices:
+                warnings.warn(
+                    f"Duplicate pair_index {pair_index} found for task {task.get_hash()}, "
+                    f"pair {enum_pair_index}; falling back to the submission position.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                pair_index = enum_pair_index
+                if not (0 <= pair_index < num_pairs) or pair_index in used_pair_indices:
+                    warnings.warn(
+                        f"Duplicate pair_index {pair_index} cannot be mapped to an unused test pair "
+                        f"for task {task.get_hash()}, pair {enum_pair_index}; skipping it.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    continue
+
+            used_pair_indices.add(pair_index)
+
             # Count all attempts in this pair, regardless of whether we process them all
             num_attempts += len(pair_attempts)
             
@@ -198,6 +218,16 @@ class ARCScorer:
                 f"total_tokens: {scoring_result.total_tokens}, duration: {scoring_result.duration}"
             )
 
+        missing_task_ids = sorted(set(self.solutions) - set(task_results))
+        expected_tasks = len(self.solutions)
+        if missing_task_ids:
+            warnings.warn(
+                f"Incomplete task coverage: {len(task_results)}/{expected_tasks} tasks have submissions; "
+                f"the final score covers submitted tasks only.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Calculate average costs
         avg_cost_per_task = self.total_cost / total_tasks if total_tasks > 0 else 0
         avg_cost_per_attempt = self.total_cost / self.total_attempts if self.total_attempts > 0 else 0
@@ -227,12 +257,20 @@ class ARCScorer:
                     "avg_total_tokens_per_task": avg_total_tokens_per_task,
                     "avg_duration_per_task": avg_duration_per_task,
                     "task_results": task_results,
+                    "task_coverage": {
+                        "submitted": len(task_results),
+                        "expected": expected_tasks,
+                        "missing_task_ids": missing_task_ids
+                    },
                     "num_attempts_with_empty_list": self.num_attempts_with_empty_list
                 }, f, indent=4)
 
         # Calculate and print percentage score
         percentage_score = (total_score / total_tasks * 100) if total_tasks > 0 else 0
-        print(f"\nFinal Score: {percentage_score:.2f}% ({total_score:.2f}/{total_tasks})")
+        print(f"\nTask coverage: {len(task_results)}/{expected_tasks} tasks")
+        if missing_task_ids:
+            print(f"Missing task ids: {', '.join(missing_task_ids)}")
+        print(f"Final Score: {percentage_score:.2f}% ({total_score:.2f}/{total_tasks} submitted tasks)")
         print(f"Total Cost: ${self.total_cost:.4f}")
         print(f"Average Cost per Task: ${avg_cost_per_task:.4f}")
         print(f"Average Cost per Attempt: ${avg_cost_per_attempt:.4f}")
